@@ -1,13 +1,15 @@
 {
   "name": "medicod-analytics-bot",
-  "version": "1.0.0",
-  "description": "Telegram бот для еженедельных аналитических отчетов Medicod Backend",
+  "version": "2.0.0",
+  "description": "Telegram бот для еженедельных аналитических отчетов Medicod Backend с AI-анализом (GLM-4.6)",
   "main": "src/index.js",
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
+    "bot": "node src/botRunner.js",
     "dev": "node --watch src/index.js",
-    "send-report": "node src/sendReport.js"
+    "send-report": "node src/sendReport.js",
+    "test": "node src/testReport.js"
   },
   "keywords": [
     "telegram",
@@ -21,7 +23,8 @@
   "dependencies": {
     "dotenv": "^16.3.1",
     "node-cron": "^3.0.3",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "zhipuai-sdk-nodejs-v4": "^0.1.12"
   },
   "engines": {
     "node": ">=20.0.0",

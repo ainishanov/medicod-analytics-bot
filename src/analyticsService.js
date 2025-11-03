@@ -5,12 +5,14 @@
 
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import AIAnalysisService from './aiAnalysisService.js';
 
 const execAsync = promisify(exec);
 
 class AnalyticsService {
   constructor(serviceName = 'medicod-backend') {
     this.serviceName = serviceName;
+    this.aiService = new AIAnalysisService();
   }
 
   /**
@@ -92,6 +94,21 @@ class AnalyticsService {
   }
 
   /**
+   * Генерирует дневной отчет
+   */
+  async generateDailyReport(period = 'today') {
+    console.log(`📊 Генерация отчета за ${period}...`);
+
+    const [payments, errors, features] = await Promise.all([
+      this.analyzePayments(period),
+      this.analyzeErrors(period),
+      this.analyzeFeatureUsage(period)
+    ]);
+
+    return { payments, errors, features };
+  }
+
+  /**
    * Генерирует полный отчет
    */
   async generateWeeklyReport() {
@@ -103,14 +120,23 @@ class AnalyticsService {
       this.analyzeFeatureUsage()
     ]);
 
-    return { payments, errors, features };
+    const report = { payments, errors, features };
+
+    // Добавляем AI анализ
+    const aiAnalysis = await this.aiService.analyzeReport(report);
+    report.aiAnalysis = aiAnalysis;
+
+    // Детектируем аномалии
+    report.anomalies = this.aiService.detectAnomalies(report);
+
+    return report;
   }
 
   /**
    * Форматирует отчет для Telegram
    */
   formatForTelegram(report) {
-    const { payments, errors, features } = report;
+    const { payments, errors, features, aiAnalysis, anomalies } = report;
 
     let msg = `📊 *Еженедельный отчет Medicod Backend*\n`;
     msg += `_${new Date().toLocaleDateString('ru-RU', {
@@ -149,7 +175,19 @@ class AnalyticsService {
     msg += `• Средняя выручка в день: ${dailyAvg}₽\n`;
     msg += `• Прогноз на месяц: *${monthlyProjection}₽*\n\n`;
 
-    msg += `✅ _Система работает стабильно_`;
+    // Добавляем AI инсайты
+    if (aiAnalysis) {
+      msg += this.aiService.formatAIAnalysisForTelegram(aiAnalysis);
+      msg += `\n\n`;
+    }
+
+    // Показываем статус системы
+    const hasHighSeverityAnomalies = anomalies?.some(a => a.severity === 'high');
+    if (hasHighSeverityAnomalies) {
+      msg += `⚠️ _Требуется внимание_`;
+    } else {
+      msg += `✅ _Система работает стабильно_`;
+    }
 
     return msg;
   }
