@@ -1,0 +1,30 @@
+{
+  "name": "medicod-analytics-bot",
+  "version": "1.0.0",
+  "description": "Telegram бот для еженедельных аналитических отчетов Medicod Backend",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "send-report": "node src/sendReport.js"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "analytics",
+    "medicod",
+    "reporting"
+  ],
+  "author": "Medicod Team",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "node-cron": "^3.0.3",
+    "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=9.0.0"
+  }
+}
