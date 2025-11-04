@@ -7,6 +7,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import AIAnalysisService from './aiAnalysisService.js';
 import AlertService from './alertService.js';
+import YandexMetrikaService from './yandexMetrikaService.js';
 import os from 'os';
 
 const execAsync = promisify(exec);
@@ -16,6 +17,7 @@ class AnalyticsService {
     this.serviceName = serviceName;
     this.aiService = new AIAnalysisService();
     this.alertService = new AlertService();
+    this.metrikaService = new YandexMetrikaService();
     this.isWindows = os.platform() === 'win32';
 
     if (this.isWindows) {
@@ -175,9 +177,67 @@ class AnalyticsService {
     const logs = await this.getLogs(since);
 
     return {
-      ocr: (logs.match(/OCR|Распознавание текста/g) || []).length,
-      ai: (logs.match(/AI анализ/g) || []).length
+      ocr: (logs.match(/📸 Получено изображение/g) || []).length,
+      ai: (logs.match(/🚀 \[BACKEND\] ПОЛУЧЕН ЗАПРОС НА AI АНАЛИЗ/g) || []).length
     };
+  }
+
+  /**
+   * Анализирует воронку пользователей
+   */
+  async analyzeFunnel(since = '7 days ago') {
+    if (this.isWindows) {
+      // Mock данные для Windows
+      return {
+        visits: 1250,
+        users: 890,
+        aiAnalyses: 156,
+        payments: 24,
+        conversionVisitToAI: 12.5,
+        conversionAIToPayment: 15.4
+      };
+    }
+
+    try {
+      // Получаем данные из Яндекс.Метрики
+      const daysMap = { 'today': 1, '1 day ago': 1, '7 days ago': 7, '14 days ago': 14 };
+      const days = daysMap[since] || 7;
+
+      const metrikaStats = await this.metrikaService.getStats(days);
+
+      // Получаем данные из логов
+      const logs = await this.getLogs(since);
+      const aiAnalyses = (logs.match(/🚀 \[BACKEND\] ПОЛУЧЕН ЗАПРОС НА AI АНАЛИЗ/g) || []).length;
+      const ocrRequests = (logs.match(/📸 Получено изображение/g) || []).length;
+      const paymentsCount = (logs.match(/Платеж успешно создан/g) || []).length;
+
+      const visits = metrikaStats?.visits?.visits || 0;
+      const users = metrikaStats?.visits?.users || 0;
+
+      return {
+        visits,
+        users,
+        ocrRequests,
+        aiAnalyses,
+        payments: paymentsCount,
+        // Конверсии
+        conversionVisitToAI: visits > 0 ? Math.round((aiAnalyses / visits) * 100 * 10) / 10 : 0,
+        conversionAIToPayment: aiAnalyses > 0 ? Math.round((paymentsCount / aiAnalyses) * 100 * 10) / 10 : 0,
+        conversionVisitToPayment: visits > 0 ? Math.round((paymentsCount / visits) * 100 * 10) / 10 : 0
+      };
+    } catch (error) {
+      console.error('❌ Ошибка анализа воронки:', error.message);
+      return {
+        visits: 0,
+        users: 0,
+        ocrRequests: 0,
+        aiAnalyses: 0,
+        payments: 0,
+        conversionVisitToAI: 0,
+        conversionAIToPayment: 0,
+        conversionVisitToPayment: 0
+      };
+    }
   }
 
   /**
@@ -201,13 +261,14 @@ class AnalyticsService {
   async generateWeeklyReport() {
     console.log('📊 Генерация еженедельного отчета...');
 
-    const [payments, errors, features] = await Promise.all([
+    const [payments, errors, features, funnel] = await Promise.all([
       this.analyzePayments(),
       this.analyzeErrors(),
-      this.analyzeFeatureUsage()
+      this.analyzeFeatureUsage(),
+      this.analyzeFunnel()
     ]);
 
-    const report = { payments, errors, features };
+    const report = { payments, errors, features, funnel };
 
     // Получаем данные прошлой недели для сравнения
     const lastWeekReport = await this.getLastWeekReport();
@@ -233,13 +294,14 @@ class AnalyticsService {
    */
   async getLastWeekReport() {
     try {
-      const [payments, errors, features] = await Promise.all([
+      const [payments, errors, features, funnel] = await Promise.all([
         this.analyzePayments('14 days ago'),
         this.analyzeErrors('14 days ago'),
-        this.analyzeFeatureUsage('14 days ago')
+        this.analyzeFeatureUsage('14 days ago'),
+        this.analyzeFunnel('14 days ago')
       ]);
 
-      return { payments, errors, features };
+      return { payments, errors, features, funnel };
     } catch (error) {
       console.warn('⚠️ Не удалось получить данные прошлой недели:', error.message);
       return null;
@@ -314,7 +376,7 @@ class AnalyticsService {
    * Форматирует отчет для Telegram
    */
   formatForTelegram(report) {
-    const { payments, errors, features, aiAnalysis, anomalies, comparison } = report;
+    const { payments, errors, features, funnel, aiAnalysis, anomalies, comparison } = report;
 
     let msg = `📊 *Еженедельный отчет Medicod Backend*\n`;
     msg += `_${new Date().toLocaleDateString('ru-RU', {
@@ -356,6 +418,21 @@ class AnalyticsService {
       msg += `• ${day}: ${data.count} платежей, ${data.revenue}₽\n`;
     });
     msg += `\n`;
+
+    // Воронка
+    if (funnel) {
+      msg += `🔮 *Воронка пользователей*\n`;
+      msg += `• Посещения: ${funnel.visits || 'н/д'}\n`;
+      msg += `• Уникальные пользователи: ${funnel.users || 'н/д'}\n`;
+      msg += `• AI анализов: ${funnel.aiAnalyses}\n`;
+      msg += `• Платежей: ${funnel.payments}\n`;
+      msg += `\n`;
+      msg += `📊 *Конверсии:*\n`;
+      msg += `• Визит → AI анализ: ${funnel.conversionVisitToAI}%\n`;
+      msg += `• AI → Платеж: ${funnel.conversionAIToPayment}%\n`;
+      msg += `• Визит → Платеж: ${funnel.conversionVisitToPayment}%\n`;
+      msg += `\n`;
+    }
 
     msg += `🤖 *Использование функций*\n`;
 
