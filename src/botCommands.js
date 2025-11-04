@@ -4,6 +4,7 @@
  */
 
 import dotenv from 'dotenv';
+import fetch from 'node-fetch';
 import AnalyticsService from './analyticsService.js';
 import TelegramService from './telegramService.js';
 import AIAnalysisService from './aiAnalysisService.js';
@@ -28,10 +29,26 @@ class BotCommandsHandler {
 
     let offset = 0;
 
-    // Отправляем приветственное сообщение
+    // Отправляем приветственное сообщение с кнопками
+    const keyboard = this.telegram.createInlineKeyboard([
+      [
+        { text: '📊 Отчет за неделю', callback_data: '/week' },
+        { text: '📅 Вчера', callback_data: '/yesterday' }
+      ],
+      [
+        { text: '📈 Сегодня', callback_data: '/today' },
+        { text: '💡 Статус', callback_data: '/status' }
+      ],
+      [
+        { text: '❓ Помощь', callback_data: '/help' }
+      ]
+    ]);
+
     await this.telegram.sendMessage(
       '🤖 *Бот запущен!*\n\n' +
-      'Используй /help для списка команд'
+      'Выбери команду ниже или используй /help',
+      'Markdown',
+      keyboard
     );
 
     // Polling loop
@@ -77,6 +94,12 @@ class BotCommandsHandler {
    * Обрабатывает одно обновление
    */
   async handleUpdate(update) {
+    // Обработка callback queries (нажатия на кнопки)
+    if (update.callback_query) {
+      await this.handleCallbackQuery(update.callback_query);
+      return;
+    }
+
     if (!update.message || !update.message.text) return;
 
     const message = update.message;
@@ -97,6 +120,47 @@ class BotCommandsHandler {
     } else {
       // Если не команда, то это вопрос для AI
       await this.handleAskCommand(text, chatId);
+    }
+  }
+
+  /**
+   * Обрабатывает нажатия на inline кнопки
+   */
+  async handleCallbackQuery(callbackQuery) {
+    const chatId = callbackQuery.message.chat.id;
+    const data = callbackQuery.data;
+    const callbackId = callbackQuery.id;
+
+    console.log(`🔘 Нажата кнопка: ${data}`);
+
+    // Проверяем авторизацию
+    if (chatId.toString() !== process.env.TELEGRAM_CHAT_ID) {
+      await this.answerCallbackQuery(callbackId, 'Unauthorized');
+      return;
+    }
+
+    // Подтверждаем получение callback
+    await this.answerCallbackQuery(callbackId);
+
+    // Обрабатываем как обычную команду
+    await this.handleCommand(data, chatId);
+  }
+
+  /**
+   * Отправляет ответ на callback query
+   */
+  async answerCallbackQuery(callbackId, text = null) {
+    try {
+      const body = { callback_query_id: callbackId };
+      if (text) body.text = text;
+
+      await fetch(`${this.telegram.apiUrl}/answerCallbackQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    } catch (error) {
+      console.error('❌ Ошибка answerCallbackQuery:', error.message);
     }
   }
 
@@ -169,9 +233,23 @@ class BotCommandsHandler {
 • Какие ошибки были сегодня?
 • Как растет средний чек?
 • Что происходит с OCR функцией?
+
+Используй кнопки ниже для быстрого доступа 👇
     `.trim();
 
-    await this.telegram.sendMessage(helpText);
+    const keyboard = this.telegram.createInlineKeyboard([
+      [
+        { text: '📊 Неделя', callback_data: '/week' },
+        { text: '📅 Вчера', callback_data: '/yesterday' },
+        { text: '📈 Сегодня', callback_data: '/today' }
+      ],
+      [
+        { text: '💡 Статус', callback_data: '/status' },
+        { text: '❓ Задать вопрос AI', callback_data: '/ask' }
+      ]
+    ]);
+
+    await this.telegram.sendMessage(helpText, 'Markdown', keyboard);
   }
 
   /**
@@ -184,7 +262,17 @@ class BotCommandsHandler {
       const report = await this.analytics.generateDailyReport('1 day ago');
       const message = this.formatDailyReport(report, 'вчера');
 
-      await this.telegram.sendMessage(message);
+      const keyboard = this.telegram.createInlineKeyboard([
+        [
+          { text: '📊 Неделя', callback_data: '/week' },
+          { text: '📈 Сегодня', callback_data: '/today' }
+        ],
+        [
+          { text: '💡 Статус', callback_data: '/status' }
+        ]
+      ]);
+
+      await this.telegram.sendMessage(message, 'Markdown', keyboard);
     } catch (error) {
       console.error('❌ Ошибка:', error);
       await this.telegram.sendMessage('❌ Ошибка генерации отчета: ' + error.message);
@@ -201,7 +289,17 @@ class BotCommandsHandler {
       const report = await this.analytics.generateDailyReport('today');
       const message = this.formatDailyReport(report, 'сегодня');
 
-      await this.telegram.sendMessage(message);
+      const keyboard = this.telegram.createInlineKeyboard([
+        [
+          { text: '📊 Неделя', callback_data: '/week' },
+          { text: '📅 Вчера', callback_data: '/yesterday' }
+        ],
+        [
+          { text: '💡 Статус', callback_data: '/status' }
+        ]
+      ]);
+
+      await this.telegram.sendMessage(message, 'Markdown', keyboard);
     } catch (error) {
       console.error('❌ Ошибка:', error);
       await this.telegram.sendMessage('❌ Ошибка генерации отчета: ' + error.message);
@@ -218,7 +316,18 @@ class BotCommandsHandler {
       const report = await this.analytics.generateWeeklyReport();
       const message = this.analytics.formatForTelegram(report);
 
-      await this.telegram.sendMessage(message);
+      const keyboard = this.telegram.createInlineKeyboard([
+        [
+          { text: '📅 Вчера', callback_data: '/yesterday' },
+          { text: '📈 Сегодня', callback_data: '/today' }
+        ],
+        [
+          { text: '💡 Статус', callback_data: '/status' },
+          { text: '❓ Задать вопрос', callback_data: '/ask Почему выручка изменилась?' }
+        ]
+      ]);
+
+      await this.telegram.sendMessage(message, 'Markdown', keyboard);
     } catch (error) {
       console.error('❌ Ошибка:', error);
       await this.telegram.sendMessage('❌ Ошибка генерации отчета: ' + error.message);

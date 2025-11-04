@@ -15,21 +15,27 @@ class TelegramService {
   /**
    * Отправляет сообщение
    */
-  async sendMessage(text, parseMode = 'Markdown') {
+  async sendMessage(text, parseMode = 'Markdown', replyMarkup = null) {
     try {
       console.log('📤 Отправка сообщения в Telegram...');
+
+      const body = {
+        chat_id: this.chatId,
+        text,
+        parse_mode: parseMode,
+        disable_web_page_preview: true
+      };
+
+      if (replyMarkup) {
+        body.reply_markup = replyMarkup;
+      }
 
       const response = await fetch(`${this.apiUrl}/sendMessage`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          chat_id: this.chatId,
-          text,
-          parse_mode: parseMode,
-          disable_web_page_preview: true
-        })
+        body: JSON.stringify(body)
       });
 
       if (!response.ok) {
@@ -50,6 +56,27 @@ class TelegramService {
       console.error('❌ Ошибка отправки в Telegram:', error.message);
       return { success: false, error: error.message };
     }
+  }
+
+  /**
+   * Создает inline клавиатуру
+   */
+  createInlineKeyboard(buttons) {
+    return {
+      inline_keyboard: buttons
+    };
+  }
+
+  /**
+   * Создает reply клавиатуру
+   */
+  createReplyKeyboard(buttons, options = {}) {
+    return {
+      keyboard: buttons,
+      resize_keyboard: options.resize !== false,
+      one_time_keyboard: options.oneTime || false,
+      selective: options.selective || false
+    };
   }
 
   /**
