@@ -53,62 +53,140 @@ class AIAnalysisService {
    * Создаёт промпт для AI анализа
    */
   createAnalysisPrompt(currentReport) {
-    const { payments, errors, features } = currentReport;
+    const { payments, errors, features, comparison } = currentReport;
+
+    // Бизнес-цели и контекст
+    const businessGoals = {
+      monthlyRevenue: 30000,
+      weeklyRevenue: 7500,
+      dailyRevenue: 1000,
+      avgCheckTarget: 100,
+      conversionRate: 10,
+      errorRateMax: 5,
+      ocrAdoptionTarget: 20,
+      aiAdoptionTarget: 30
+    };
 
     let prompt = `Ты эксперт по бизнес-аналитике SaaS приложения Medicod - медицинского сервиса для анализа крови.
+
+🎯 БИЗНЕС-ЦЕЛИ:
+- Целевая выручка: ${businessGoals.weeklyRevenue}₽/неделю (${businessGoals.monthlyRevenue}₽/месяц)
+- Целевая выручка в день: ${businessGoals.dailyRevenue}₽
+- Целевой средний чек: ${businessGoals.avgCheckTarget}₽
+- Целевой adoption rate OCR: ${businessGoals.ocrAdoptionTarget}%
+- Целевой adoption rate AI: ${businessGoals.aiAdoptionTarget}%
+- Максимум ошибок: ${businessGoals.errorRateMax}%
 
 📊 ТЕКУЩИЕ ДАННЫЕ (последняя неделя):
 
 Финансы:
-- Платежей: ${payments.total}
-- Выручка: ${payments.revenue}₽
-- Средний чек: ${payments.avgCheck}₽
-- Динамика по дням: ${JSON.stringify(payments.byDay, null, 2)}
+- Платежей: ${payments.total}`;
 
-Функции:
-- OCR запросов: ${features.ocr}
-- AI анализов: ${features.ai}
-
-Ошибки:
-- Всего: ${errors.total}
-- Webhook ошибки: ${errors.webhook}
-`;
-
-    // Добавляем исторические данные для сравнения
-    if (this.historicalData.length > 0) {
-      const lastWeek = this.historicalData[this.historicalData.length - 1];
-      prompt += `\n📈 ДАННЫЕ ПРОШЛОЙ НЕДЕЛИ (для сравнения):
-- Платежей: ${lastWeek.payments?.total || 'нет данных'}
-- Выручка: ${lastWeek.payments?.revenue || 'нет данных'}₽
-- Средний чек: ${lastWeek.payments?.avgCheck || 'нет данных'}₽
-- OCR: ${lastWeek.features?.ocr || 0}
-- AI анализов: ${lastWeek.features?.ai || 0}
-- Ошибок: ${lastWeek.errors?.total || 0}
-`;
+    if (comparison?.payments?.total) {
+      const c = comparison.payments.total;
+      prompt += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW, было ${c.previous})`;
     }
 
-    prompt += `\n🎯 ЗАДАЧА:
-Проанализируй данные и предоставь:
+    prompt += `\n- Выручка: ${payments.revenue}₽`;
+
+    if (comparison?.payments?.revenue) {
+      const c = comparison.payments.revenue;
+      const revenueGap = businessGoals.weeklyRevenue - payments.revenue;
+      const progress = Math.round((payments.revenue / businessGoals.weeklyRevenue) * 100);
+      prompt += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW, было ${c.previous}₽)
+  ↳ ${progress}% от целевой выручки (не хватает ${revenueGap}₽)`;
+    }
+
+    prompt += `\n- Средний чек: ${payments.avgCheck}₽`;
+
+    if (comparison?.payments?.avgCheck) {
+      const c = comparison.payments.avgCheck;
+      const checkGap = businessGoals.avgCheckTarget - payments.avgCheck;
+      prompt += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW, было ${c.previous}₽)
+  ↳ на ${checkGap}₽ ниже цели (${businessGoals.avgCheckTarget}₽)`;
+    }
+
+    prompt += `\n- Динамика по дням: ${JSON.stringify(payments.byDay, null, 2)}
+
+Функции:
+- OCR запросов: ${features.ocr}`;
+
+    if (comparison?.features?.ocr) {
+      const c = comparison.features.ocr;
+      prompt += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW, было ${c.previous})`;
+    }
+
+    const ocrAdoption = payments.total > 0 ? Math.round((features.ocr / payments.total) * 100) : 0;
+    prompt += `
+  ↳ Adoption rate: ${ocrAdoption}% (цель: ${businessGoals.ocrAdoptionTarget}%)`;
+
+    prompt += `\n- AI анализов: ${features.ai}`;
+
+    if (comparison?.features?.ai) {
+      const c = comparison.features.ai;
+      prompt += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW, было ${c.previous})`;
+    }
+
+    const aiAdoption = payments.total > 0 ? Math.round((features.ai / payments.total) * 100) : 0;
+    prompt += `
+  ↳ Adoption rate: ${aiAdoption}% (цель: ${businessGoals.aiAdoptionTarget}%)`;
+
+    prompt += `
+
+Ошибки:
+- Всего: ${errors.total}`;
+
+    if (comparison?.errors?.total) {
+      const c = comparison.errors.total;
+      prompt += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW, было ${c.previous})`;
+    }
+
+    prompt += `\n- Webhook ошибки: ${errors.webhook}`;
+
+    if (comparison?.errors?.webhook) {
+      const c = comparison.errors.webhook;
+      prompt += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW, было ${c.previous})`;
+    }
+
+    const errorRate = payments.total > 0 ? Math.round((errors.total / payments.total) * 100) : 0;
+    prompt += `
+  ↳ Error rate: ${errorRate}% (макс: ${businessGoals.errorRateMax}%)`;
+
+    // Корреляционный анализ
+    prompt += `
+
+🔗 КОРРЕЛЯЦИИ ДЛЯ АНАЛИЗА:
+- Влияние ошибок на выручку
+- Связь между OCR/AI adoption и retention
+- Паттерны по дням недели
+- Влияние среднего чека на количество платежей`;
+
+    prompt += `
+
+🎯 ЗАДАЧА:
+Проанализируй данные в контексте бизнес-целей и предоставь:
 
 1. **🔍 КЛЮЧЕВЫЕ ИНСАЙТЫ** (2-3 пункта)
-   - Важные наблюдения и аномалии
-   - Положительные и негативные тренды
-   - Сравнение с прошлой неделей (если есть данные)
+   - Прогресс по целям (достигаем или отстаем?)
+   - WoW тренды (что растет/падает и почему?)
+   - Аномалии и неожиданные паттерны
 
 2. **⚠️ ПРОБЛЕМЫ И РИСКИ** (1-2 пункта)
-   - Что требует немедленного внимания
-   - Потенциальные угрозы для бизнеса
+   - Что блокирует достижение целей?
+   - Критические проблемы требующие немедленного внимания
+   - Потенциальные риски для revenue/retention
 
-3. **💡 РЕКОМЕНДАЦИИ** (2-3 конкретных действия)
-   - Приоритетные шаги для улучшения метрик
-   - Конкретные эксперименты для тестирования
+3. **💡 ТОП-3 ДЕЙСТВИЯ** (приоритетные по impact)
+   - Конкретные шаги с ожидаемым эффектом
+   - A/B тесты или эксперименты для запуска
+   - Quick wins (низкие усилия, высокий impact)
 
-4. **❓ ВОПРОСЫ ДЛЯ РАЗМЫШЛЕНИЯ** (2-3 вопроса)
-   - Стратегические вопросы для владельца продукта
-   - Идеи для улучшения продукта
+4. **❓ ВОПРОСЫ ДЛЯ ИССЛЕДОВАНИЯ** (1-2 вопроса)
+   - Что нужно выяснить для принятия решений?
+   - Гипотезы для проверки
 
-Формат ответа: краткий, структурированный, с эмодзи. Максимум 800 символов.
-Будь конкретным и actionable. Избегай общих фраз.`;
+Формат ответа: краткий, структурированный, с эмодзи. Максимум 900 символов.
+Будь конкретным и actionable. Фокусируйся на biggest impact действиях.`;
 
     return prompt;
   }
