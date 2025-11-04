@@ -183,6 +183,163 @@ class AnalyticsService {
   }
 
   /**
+   * Анализирует использование AI токенов по моделям
+   */
+  async analyzeTokenUsage(since = '7 days ago') {
+    if (this.isWindows) {
+      // Mock данные для Windows
+      return {
+        byModel: {
+          'gpt-4o-mini-2024-07-18': {
+            requests: 45,
+            promptTokens: 125000,
+            completionTokens: 78000,
+            totalTokens: 203000,
+            cost: 0.05  // $0.05
+          },
+          'gpt-4o-2024-08-06': {
+            requests: 3,
+            promptTokens: 15000,
+            completionTokens: 8500,
+            totalTokens: 23500,
+            cost: 0.15  // $0.15
+          }
+        },
+        total: {
+          requests: 48,
+          promptTokens: 140000,
+          completionTokens: 86500,
+          totalTokens: 226500,
+          cost: 0.20  // $0.20
+        }
+      };
+    }
+
+    try {
+      const logs = await this.getLogs(since);
+      const lines = logs.split('\n');
+
+      const byModel = {};
+      let currentModel = null;
+      let tokenData = null;
+
+      for (const line of lines) {
+        // Ищем модель
+        const modelMatch = line.match(/🤖 \[AI SERVICE\] ИСПОЛЬЗОВАННАЯ МОДЕЛЬ: (.+)/);
+        if (modelMatch) {
+          currentModel = modelMatch[1].trim();
+          if (!byModel[currentModel]) {
+            byModel[currentModel] = {
+              requests: 0,
+              promptTokens: 0,
+              completionTokens: 0,
+              totalTokens: 0
+            };
+          }
+        }
+
+        // Ищем prompt_tokens
+        const promptMatch = line.match(/prompt_tokens:\s*(\d+)/);
+        if (promptMatch && currentModel) {
+          if (!tokenData) tokenData = {};
+          tokenData.prompt = parseInt(promptMatch[1]);
+        }
+
+        // Ищем completion_tokens
+        const completionMatch = line.match(/completion_tokens:\s*(\d+)/);
+        if (completionMatch && currentModel && tokenData) {
+          tokenData.completion = parseInt(completionMatch[1]);
+        }
+
+        // Ищем total_tokens
+        const totalMatch = line.match(/total_tokens:\s*(\d+)/);
+        if (totalMatch && currentModel && tokenData) {
+          tokenData.total = parseInt(totalMatch[1]);
+
+          // Сохраняем данные
+          byModel[currentModel].requests++;
+          byModel[currentModel].promptTokens += tokenData.prompt || 0;
+          byModel[currentModel].completionTokens += tokenData.completion || 0;
+          byModel[currentModel].totalTokens += tokenData.total || 0;
+
+          // Сбрасываем временные данные
+          tokenData = null;
+          currentModel = null;
+        }
+      }
+
+      // Рассчитываем стоимость по моделям
+      this.calculateTokenCosts(byModel);
+
+      // Подсчитываем общую статистику
+      const total = {
+        requests: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        cost: 0
+      };
+
+      for (const model in byModel) {
+        total.requests += byModel[model].requests;
+        total.promptTokens += byModel[model].promptTokens;
+        total.completionTokens += byModel[model].completionTokens;
+        total.totalTokens += byModel[model].totalTokens;
+        total.cost += byModel[model].cost || 0;
+      }
+
+      return { byModel, total };
+    } catch (error) {
+      console.error('❌ Ошибка анализа токенов:', error.message);
+      return {
+        byModel: {},
+        total: {
+          requests: 0,
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          cost: 0
+        }
+      };
+    }
+  }
+
+  /**
+   * Рассчитывает стоимость токенов по моделям OpenAI
+   * Цены на февраль 2025 (актуально по состоянию на дату создания)
+   */
+  calculateTokenCosts(byModel) {
+    // Цены в USD за 1M токенов
+    const pricing = {
+      'gpt-4o-mini-2024-07-18': {
+        input: 0.150,    // $0.15 per 1M input tokens
+        output: 0.600     // $0.60 per 1M output tokens
+      },
+      'gpt-4o-2024-08-06': {
+        input: 2.50,      // $2.50 per 1M input tokens
+        output: 10.00     // $10.00 per 1M output tokens
+      },
+      'gpt-4o-2024-11-20': {
+        input: 2.50,
+        output: 10.00
+      },
+      'gpt-4-turbo-2024-04-09': {
+        input: 10.00,
+        output: 30.00
+      }
+    };
+
+    for (const model in byModel) {
+      const modelPricing = pricing[model] || pricing['gpt-4o-mini-2024-07-18']; // fallback
+
+      const inputCost = (byModel[model].promptTokens / 1000000) * modelPricing.input;
+      const outputCost = (byModel[model].completionTokens / 1000000) * modelPricing.output;
+
+      byModel[model].cost = Math.round((inputCost + outputCost) * 100) / 100; // округляем до центов
+    }
+  }
+
+  /**
    * Анализирует воронку пользователей
    */
   async analyzeFunnel(since = '7 days ago') {
@@ -261,14 +418,15 @@ class AnalyticsService {
   async generateWeeklyReport() {
     console.log('📊 Генерация еженедельного отчета...');
 
-    const [payments, errors, features, funnel] = await Promise.all([
+    const [payments, errors, features, funnel, tokens] = await Promise.all([
       this.analyzePayments(),
       this.analyzeErrors(),
       this.analyzeFeatureUsage(),
-      this.analyzeFunnel()
+      this.analyzeFunnel(),
+      this.analyzeTokenUsage()
     ]);
 
-    const report = { payments, errors, features, funnel };
+    const report = { payments, errors, features, funnel, tokens };
 
     // Получаем данные прошлой недели для сравнения
     const lastWeekReport = await this.getLastWeekReport();
@@ -373,10 +531,17 @@ class AnalyticsService {
   }
 
   /**
+   * Форматирует большие числа с разделителями (123456 -> 123,456)
+   */
+  formatNumber(num) {
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  /**
    * Форматирует отчет для Telegram
    */
   formatForTelegram(report) {
-    const { payments, errors, features, funnel, aiAnalysis, anomalies, comparison } = report;
+    const { payments, errors, features, funnel, tokens, aiAnalysis, anomalies, comparison } = report;
 
     let msg = `📊 *Еженедельный отчет Medicod Backend*\n`;
     msg += `_${new Date().toLocaleDateString('ru-RU', {
@@ -490,6 +655,26 @@ class AnalyticsService {
       msg += `  ↳ ✅ Цель достигнута! (+${Math.abs(projectionGap)}₽)\n`;
     }
     msg += `\n`;
+
+    // Токены и стоимость AI
+    if (tokens && tokens.total && tokens.total.requests > 0) {
+      msg += `💸 *Использование AI токенов*\n`;
+      msg += `• Запросов: ${tokens.total.requests}\n`;
+      msg += `• Токенов: ${this.formatNumber(tokens.total.totalTokens)}\n`;
+      msg += `• Стоимость: $${tokens.total.cost.toFixed(2)}\n`;
+
+      // Детализация по моделям (если больше 1)
+      const models = Object.keys(tokens.byModel);
+      if (models.length > 1) {
+        msg += `\n📊 *По моделям:*\n`;
+        models.forEach(model => {
+          const data = tokens.byModel[model];
+          const shortModel = model.replace('gpt-', '').replace('-2024-', '/');
+          msg += `• ${shortModel}: ${data.requests} req, $${data.cost.toFixed(2)}\n`;
+        });
+      }
+      msg += `\n`;
+    }
 
     // Добавляем алерты
     if (report.alerts) {
