@@ -340,6 +340,44 @@ class AnalyticsService {
   }
 
   /**
+   * Анализирует использование Yandex Vision OCR
+   */
+  async analyzeOCRUsage(since = '7 days ago') {
+    if (this.isWindows) {
+      // Mock данные для Windows
+      return {
+        requests: 15,
+        cost: 0.08  // $0.08
+      };
+    }
+
+    try {
+      const logs = await this.getLogs(since);
+
+      // Считаем количество OCR запросов (через backend)
+      const ocrRequests = (logs.match(/📸 Получено изображение/g) || []).length;
+
+      // Yandex Vision OCR стоимость
+      // Цены на февраль 2025: 1₽ за 1000 единиц распознавания
+      // 1 изображение = ~1 единица
+      // Конвертируем рубли в доллары (примерно 1$ = 100₽)
+      const costInRubles = (ocrRequests / 1000) * 1; // 1₽ за 1000 запросов
+      const costInUSD = costInRubles / 100; // конвертация в USD
+
+      return {
+        requests: ocrRequests,
+        cost: Math.round(costInUSD * 100) / 100 // округляем до центов
+      };
+    } catch (error) {
+      console.error('❌ Ошибка анализа OCR:', error.message);
+      return {
+        requests: 0,
+        cost: 0
+      };
+    }
+  }
+
+  /**
    * Анализирует воронку пользователей
    */
   async analyzeFunnel(since = '7 days ago') {
@@ -418,15 +456,16 @@ class AnalyticsService {
   async generateWeeklyReport() {
     console.log('📊 Генерация еженедельного отчета...');
 
-    const [payments, errors, features, funnel, tokens] = await Promise.all([
+    const [payments, errors, features, funnel, tokens, ocr] = await Promise.all([
       this.analyzePayments(),
       this.analyzeErrors(),
       this.analyzeFeatureUsage(),
       this.analyzeFunnel(),
-      this.analyzeTokenUsage()
+      this.analyzeTokenUsage(),
+      this.analyzeOCRUsage()
     ]);
 
-    const report = { payments, errors, features, funnel, tokens };
+    const report = { payments, errors, features, funnel, tokens, ocr };
 
     // Получаем данные прошлой недели для сравнения
     const lastWeekReport = await this.getLastWeekReport();
@@ -541,7 +580,7 @@ class AnalyticsService {
    * Форматирует отчет для Telegram
    */
   formatForTelegram(report) {
-    const { payments, errors, features, funnel, tokens, aiAnalysis, anomalies, comparison } = report;
+    const { payments, errors, features, funnel, tokens, ocr, aiAnalysis, anomalies, comparison } = report;
 
     let msg = `📊 *Еженедельный отчет Medicod Backend*\n`;
     msg += `_${new Date().toLocaleDateString('ru-RU', {
@@ -674,6 +713,13 @@ class AnalyticsService {
         });
       }
       msg += `\n`;
+    }
+
+    // OCR расходы
+    if (ocr && ocr.requests > 0) {
+      msg += `📸 *Yandex Vision OCR*\n`;
+      msg += `• Запросов: ${ocr.requests}\n`;
+      msg += `• Стоимость: $${ocr.cost.toFixed(2)}\n\n`;
     }
 
     // Добавляем алерты
