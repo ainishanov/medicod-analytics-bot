@@ -179,7 +179,7 @@ class AlertService {
    * Возможности (положительные сигналы)
    */
   checkOpportunityAlerts(report, alerts) {
-    const { payments, features, comparison } = report;
+    const { payments, errors, features, comparison } = report;
 
     // 1. Сильный рост revenue
     if (comparison?.payments?.revenue?.percent > 50) {
