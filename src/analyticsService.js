@@ -9,6 +9,8 @@ import AIAnalysisService from './aiAnalysisService.js';
 import AlertService from './alertService.js';
 import YandexMetrikaService from './yandexMetrikaService.js';
 import { getDatabaseInstance } from './database.js';
+import * as BehaviorQueries from './behaviorQueries.js';
+import * as AdvancedQueries from './advancedAnalyticsQueries.js';
 import os from 'os';
 
 const execAsync = promisify(exec);
@@ -526,6 +528,20 @@ class AnalyticsService {
 
     const report = { payments, errors, features, funnel, tokens, ocr };
 
+    // 👥 Добавляем данные поведения пользователей
+    if (this.db && this.db.isAvailable()) {
+      console.log('📊 Получение данных поведения пользователей...');
+      report.behavior = {
+        users: this.analyzeBehaviorUsers(),
+        behaviorFunnel: this.analyzeBehaviorFunnel(),
+        devices: this.analyzeBehaviorDevices(),
+        sources: this.analyzeBehaviorSources(),
+        topFeatures: this.analyzeBehaviorFeatures(5),
+        retention: this.analyzeBehaviorRetention(3),
+        engagement: this.analyzeBehaviorEngagement()
+      };
+    }
+
     // Получаем данные прошлой недели для сравнения
     const lastWeekReport = await this.getLastWeekReport();
     if (lastWeekReport) {
@@ -636,22 +652,160 @@ class AnalyticsService {
   }
 
   /**
+   * 👥 АНАЛИТИКА ПОВЕДЕНИЯ ПОЛЬЗОВАТЕЛЕЙ
+   */
+
+  /**
+   * Анализирует активных пользователей
+   */
+  analyzeBehaviorUsers(since = '7 days ago') {
+    if (!this.db || !this.db.isAvailable()) {
+      return null;
+    }
+
+    try {
+      const daysMap = { 'today': 0, '1 day ago': 1, '7 days ago': 7, '14 days ago': 14 };
+      const days = daysMap[since] || 7;
+
+      const dateFrom = new Date();
+      dateFrom.setDate(dateFrom.getDate() - days);
+
+      const stats = BehaviorQueries.getActiveUsers({
+        dateFrom: dateFrom.toISOString(),
+        dateTo: new Date().toISOString()
+      });
+
+      return stats;
+    } catch (error) {
+      console.warn('⚠️ Не удалось получить данные о пользователях:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Анализирует воронку конверсии из поведения
+   */
+  analyzeBehaviorFunnel(since = '7 days ago') {
+    if (!this.db || !this.db.isAvailable()) {
+      return null;
+    }
+
+    try {
+      const daysMap = { 'today': 0, '1 day ago': 1, '7 days ago': 7, '14 days ago': 14 };
+      const days = daysMap[since] || 7;
+
+      const dateFrom = new Date();
+      dateFrom.setDate(dateFrom.getDate() - days);
+
+      const funnel = BehaviorQueries.getConversionFunnel({
+        dateFrom: dateFrom.toISOString(),
+        dateTo: new Date().toISOString()
+      });
+
+      return funnel;
+    } catch (error) {
+      console.warn('⚠️ Не удалось получить воронку конверсии:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Анализирует устройства пользователей
+   */
+  analyzeBehaviorDevices() {
+    if (!this.db || !this.db.isAvailable()) {
+      return null;
+    }
+
+    try {
+      return BehaviorQueries.getSessionsByDevice();
+    } catch (error) {
+      console.warn('⚠️ Не удалось получить данные по устройствам:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Анализирует источники трафика
+   */
+  analyzeBehaviorSources() {
+    if (!this.db || !this.db.isAvailable()) {
+      return null;
+    }
+
+    try {
+      return BehaviorQueries.getTrafficSources();
+    } catch (error) {
+      console.warn('⚠️ Не удалось получить источники трафика:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Анализирует популярные функции
+   */
+  analyzeBehaviorFeatures(limit = 10) {
+    if (!this.db || !this.db.isAvailable()) {
+      return null;
+    }
+
+    try {
+      return BehaviorQueries.getTopFeatures(limit);
+    } catch (error) {
+      console.warn('⚠️ Не удалось получить популярные функции:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Анализирует retention
+   */
+  analyzeBehaviorRetention(limit = 5) {
+    if (!this.db || !this.db.isAvailable()) {
+      return null;
+    }
+
+    try {
+      return BehaviorQueries.getCohortRetention({ limit });
+    } catch (error) {
+      console.warn('⚠️ Не удалось получить retention:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Анализирует engagement по дням недели
+   */
+  analyzeBehaviorEngagement() {
+    if (!this.db || !this.db.isAvailable()) {
+      return null;
+    }
+
+    try {
+      return BehaviorQueries.getEngagementByDayOfWeek();
+    } catch (error) {
+      console.warn('⚠️ Не удалось получить engagement:', error.message);
+      return null;
+    }
+  }
+
+  /**
    * Форматирует отчет для Telegram
    */
   formatForTelegram(report) {
-    const { payments, errors, features, funnel, tokens, ocr, aiAnalysis, anomalies, comparison } = report;
+    const { payments, errors, features, funnel, aiAnalysis, comparison } = report;
 
-    let msg = `📊 *Еженедельный отчет Medicod Backend*\n`;
-    msg += `_${new Date().toLocaleDateString('ru-RU', {
+    let msg = `📊 <b>Еженедельный отчет Medicod</b>\n`;
+    msg += `<i>${new Date().toLocaleDateString('ru-RU', {
       day: 'numeric',
       month: 'long',
       year: 'numeric'
-    })}_\n\n`;
+    })}</i>\n\n`;
 
-    msg += `💰 *Финансовая статистика*\n`;
+    msg += `💰 <b>Финансы</b>\n`;
 
     // Платежи с WoW сравнением
-    msg += `• Платежей: *${payments.total}*`;
+    msg += `• Платежей: <b>${payments.total}</b>`;
     if (comparison?.payments?.total) {
       const c = comparison.payments.total;
       msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${c.emoji}`;
@@ -659,7 +813,7 @@ class AnalyticsService {
     msg += `\n`;
 
     // Выручка с WoW сравнением
-    msg += `• Выручка: *${payments.revenue}₽*`;
+    msg += `• Выручка: <b>${payments.revenue}₽</b>`;
     if (comparison?.payments?.revenue) {
       const c = comparison.payments.revenue;
       msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${c.emoji}`;
@@ -667,147 +821,162 @@ class AnalyticsService {
     msg += `\n`;
 
     // Средний чек с WoW сравнением
-    msg += `• Средний чек: *${payments.avgCheck}₽*`;
+    msg += `• Средний чек: <b>${payments.avgCheck}₽</b>`;
     if (comparison?.payments?.avgCheck) {
       const c = comparison.payments.avgCheck;
       msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${c.emoji}`;
     }
-    msg += `\n`;
-    msg += `• Успешность: *100%*\n\n`;
-
-    msg += `📅 *Динамика по дням*\n`;
-    const days = Object.entries(payments.byDay).slice(-7);
-    days.forEach(([day, data]) => {
-      msg += `• ${day}: ${data.count} платежей, ${data.revenue}₽\n`;
-    });
-    msg += `\n`;
-
-    // Воронка
-    if (funnel) {
-      msg += `🔮 *Воронка пользователей*\n`;
-      msg += `• Посещения: ${funnel.visits || 'н/д'}\n`;
-      msg += `• Уникальные пользователи: ${funnel.users || 'н/д'}\n`;
-      msg += `• AI анализов: ${funnel.aiAnalyses}\n`;
-      msg += `• Платежей: ${funnel.payments}\n`;
-      msg += `\n`;
-      msg += `📊 *Конверсии:*\n`;
-      msg += `• Визит → AI анализ: ${funnel.conversionVisitToAI}%\n`;
-      msg += `• AI → Платеж: ${funnel.conversionAIToPayment}%\n`;
-      msg += `• Визит → Платеж: ${funnel.conversionVisitToPayment}%\n`;
-      msg += `\n`;
-    }
-
-    msg += `🤖 *Использование функций*\n`;
-
-    // OCR с WoW сравнением
-    msg += `• OCR запросов: ${features.ocr}`;
-    if (comparison?.features?.ocr) {
-      const c = comparison.features.ocr;
-      msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${c.emoji}`;
-    }
-    msg += `\n`;
-
-    // AI анализ с WoW сравнением
-    msg += `• AI анализ: ${features.ai}`;
-    if (comparison?.features?.ai) {
-      const c = comparison.features.ai;
-      msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${c.emoji}`;
-    }
     msg += `\n\n`;
 
-    msg += `⚠️ *Ошибки*\n`;
-
-    // Ошибки с WoW сравнением
-    msg += `• Всего: ${errors.total}`;
-    if (comparison?.errors?.total) {
-      const c = comparison.errors.total;
-      const errorEmoji = c.trend === 'down' ? '✅' : c.trend === 'up' ? '⚠️' : '➡️';
-      msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${errorEmoji}`;
-    }
-    msg += `\n`;
-
-    if (errors.webhook > 0) {
-      msg += `• Webhook ошибки: ${errors.webhook}`;
-      if (comparison?.errors?.webhook) {
-        const c = comparison.errors.webhook;
-        const errorEmoji = c.trend === 'down' ? '✅' : c.trend === 'up' ? '⚠️' : '➡️';
-        msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${errorEmoji}`;
+    // Ключевые метрики воронки
+    if (funnel) {
+      msg += `🔥 <b>Конверсии</b>\n`;
+      msg += `• Визит → Платеж: <b>${funnel.conversionVisitToPayment}%</b>\n`;
+      if (funnel.aiAnalyses > 0) {
+        msg += `• AI → Платеж: ${funnel.conversionAIToPayment}%\n`;
       }
       msg += `\n`;
     }
-    msg += `\n`;
+
+    // Только если есть использование функций
+    if (features.ocr > 0 || features.ai > 0) {
+      msg += `🤖 <b>Функции</b>\n`;
+      if (features.ocr > 0) {
+        msg += `• OCR: ${features.ocr}`;
+        if (comparison?.features?.ocr) {
+          const c = comparison.features.ocr;
+          msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${c.emoji}`;
+        }
+        msg += `\n`;
+      }
+      if (features.ai > 0) {
+        msg += `• AI: ${features.ai}`;
+        if (comparison?.features?.ai) {
+          const c = comparison.features.ai;
+          msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${c.emoji}`;
+        }
+        msg += `\n`;
+      }
+      msg += `\n`;
+    }
+
+    // Ошибки - только если есть проблемы
+    if (errors.total > 0) {
+      msg += `⚠️ <b>Ошибки</b>\n`;
+      msg += `• Всего: ${errors.total}`;
+      if (comparison?.errors?.total) {
+        const c = comparison.errors.total;
+        const errorEmoji = c.trend === 'down' ? '✅' : c.trend === 'up' ? '⚠️' : '➡️';
+        msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${errorEmoji}`;
+      }
+      msg += `\n\n`;
+    }
 
     const dailyAvg = Math.round(payments.revenue / 7);
     const monthlyProjection = dailyAvg * 30;
     const monthlyGoal = 30000;
     const projectionProgress = Math.round((monthlyProjection / monthlyGoal) * 100);
-    const projectionGap = monthlyGoal - monthlyProjection;
 
-    msg += `🔮 *Прогноз*\n`;
-    msg += `• Средняя выручка в день: ${dailyAvg}₽ (цель: 1000₽)\n`;
-    msg += `• Прогноз на месяц: *${monthlyProjection}₽* (${projectionProgress}% от цели)\n`;
+    msg += `🎯 <b>Прогноз</b>\n`;
+    msg += `• Прогноз на месяц: <b>${monthlyProjection}₽</b> (${projectionProgress}% от цели 30,000₽)\n\n`;
 
-    if (monthlyProjection < monthlyGoal) {
-      msg += `  ↳ Не хватает ${projectionGap}₽ до цели ${monthlyGoal}₽\n`;
-    } else {
-      msg += `  ↳ ✅ Цель достигнута! (+${Math.abs(projectionGap)}₽)\n`;
-    }
-    msg += `\n`;
-
-    // Токены и стоимость AI
-    if (tokens && tokens.total && tokens.total.requests > 0) {
-      msg += `💸 *Использование AI токенов*\n`;
-      msg += `• Запросов: ${tokens.total.requests}\n`;
-      msg += `• Токенов: ${this.formatNumber(tokens.total.totalTokens)}\n`;
-      msg += `• Стоимость: $${tokens.total.cost.toFixed(2)}\n`;
-
-      // Детализация по моделям (если больше 1)
-      const models = Object.keys(tokens.byModel);
-      if (models.length > 1) {
-        msg += `\n📊 *По моделям:*\n`;
-        models.forEach(model => {
-          const data = tokens.byModel[model];
-          const shortModel = model.replace('gpt-', '').replace('-2024-', '/');
-          msg += `• ${shortModel}: ${data.requests} req, $${data.cost.toFixed(2)}\n`;
-        });
-      }
-      msg += `\n`;
-    }
-
-    // OCR расходы
-    if (ocr && ocr.requests > 0) {
-      msg += `📸 *Yandex Vision OCR*\n`;
-      msg += `• Запросов: ${ocr.requests}\n`;
-      msg += `• Стоимость: $${ocr.cost.toFixed(2)}\n\n`;
-    }
-
-    // Добавляем алерты
-    if (report.alerts) {
-      const alertsMessage = this.alertService.formatAlertsForTelegram(report.alerts);
-      if (alertsMessage) {
-        msg += alertsMessage;
-      }
-    }
-
-    // Добавляем AI инсайты
+    // AI инсайты - самое важное для CEO
     if (aiAnalysis) {
       msg += this.aiService.formatAIAnalysisForTelegram(aiAnalysis);
-      msg += `\n\n`;
-    }
-
-    // Показываем статус системы
-    const hasHighSeverityAnomalies = anomalies?.some(a => a.severity === 'high');
-    const hasCriticalAlerts = report.alerts?.critical?.length > 0;
-
-    if (hasCriticalAlerts) {
-      msg += `🚨 _ТРЕБУЕТСЯ СРОЧНОЕ ВНИМАНИЕ_`;
-    } else if (hasHighSeverityAnomalies) {
-      msg += `⚠️ _Требуется внимание_`;
-    } else {
-      msg += `✅ _Система работает стабильно_`;
     }
 
     return msg;
+  }
+
+  /**
+   * LTV - Customer Lifetime Value
+   */
+  analyzeCustomerLTV(options = {}) {
+    if (!this.db || !this.db.isAvailable()) return null;
+    try {
+      return AdvancedQueries.calculateLTV(options);
+    } catch (error) {
+      console.warn('⚠️ Ошибка получения LTV:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Churn Rate - коэффициент оттока
+   */
+  analyzeChurnRate(options = {}) {
+    if (!this.db || !this.db.isAvailable()) return null;
+    try {
+      return AdvancedQueries.getChurnRate(options);
+    } catch (error) {
+      console.warn('⚠️ Ошибка получения Churn Rate:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Churn Rate по когортам
+   */
+  analyzeChurnByCohort() {
+    if (!this.db || !this.db.isAvailable()) return null;
+    try {
+      return AdvancedQueries.getChurnRateByCohort();
+    } catch (error) {
+      console.warn('⚠️ Ошибка получения Churn по когортам:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Детальная воронка (8 этапов)
+   */
+  analyzeDetailedFunnel(options = {}) {
+    if (!this.db || !this.db.isAvailable()) return null;
+    try {
+      return AdvancedQueries.getDetailedFunnel(options);
+    } catch (error) {
+      console.warn('⚠️ Ошибка получения детальной воронки:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Средний чек
+   */
+  analyzeAverageOrderValue(options = {}) {
+    if (!this.db || !this.db.isAvailable()) return null;
+    try {
+      return AdvancedQueries.getAverageOrderValue(options);
+    } catch (error) {
+      console.warn('⚠️ Ошибка получения среднего чека:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Топ клиентов по LTV
+   */
+  analyzeTopCustomers(limit = 20) {
+    if (!this.db || !this.db.isAvailable()) return null;
+    try {
+      return AdvancedQueries.getTopCustomersByLTV(limit);
+    } catch (error) {
+      console.warn('⚠️ Ошибка получения топ клиентов:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Когортный анализ LTV
+   */
+  analyzeCohortLTV() {
+    if (!this.db || !this.db.isAvailable()) return null;
+    try {
+      return AdvancedQueries.getCohortLTVAnalysis();
+    } catch (error) {
+      console.warn('⚠️ Ошибка когортного анализа:', error.message);
+      return null;
+    }
   }
 }
 

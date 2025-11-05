@@ -7,10 +7,14 @@
   "scripts": {
     "start": "node src/index.js",
     "bot": "node src/botRunner.js",
+    "webhook": "node src/webhookRunner.js",
     "dev": "node --watch src/index.js",
     "send-report": "node src/sendReport.js",
     "test": "node src/testReport.js",
-    "test:db": "node src/testDatabase.js"
+    "test:db": "node src/testDatabase.js",
+    "webhook:info": "node src/manageWebhook.js info",
+    "webhook:set": "node src/manageWebhook.js set",
+    "webhook:delete": "node src/manageWebhook.js delete"
   },
   "keywords": [
     "telegram",
@@ -24,6 +28,7 @@
   "dependencies": {
     "better-sqlite3": "^11.10.0",
     "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "node-cron": "^3.0.3",
     "node-fetch": "^3.3.2",
     "zhipuai-sdk-nodejs-v4": "^0.1.12"

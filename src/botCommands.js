@@ -32,14 +32,15 @@ class BotCommandsHandler {
     // Отправляем приветственное сообщение с кнопками
     const keyboard = this.telegram.createInlineKeyboard([
       [
-        { text: '📊 Отчет за неделю', callback_data: '/week' },
-        { text: '📅 Вчера', callback_data: '/yesterday' }
+        { text: '📊 Неделя', callback_data: '/week' },
+        { text: '👥 Поведение', callback_data: '/behavior' }
       ],
       [
-        { text: '📈 Сегодня', callback_data: '/today' },
-        { text: '💡 Статус', callback_data: '/status' }
+        { text: '🔥 Воронка', callback_data: '/funnel' },
+        { text: '👥 Пользователи', callback_data: '/users' }
       ],
       [
+        { text: '💡 Статус', callback_data: '/status' },
         { text: '❓ Помощь', callback_data: '/help' }
       ]
     ]);
@@ -201,6 +202,82 @@ class BotCommandsHandler {
         await this.handleStatusCommand(chatId);
         break;
 
+      // 👥 Команды поведения пользователей
+      case '/users':
+      case '/пользователи':
+        await this.handleUsersCommand(chatId);
+        break;
+
+      case '/funnel':
+      case '/воронка':
+        await this.handleFunnelCommand(chatId);
+        break;
+
+      case '/devices':
+      case '/устройства':
+        await this.handleDevicesCommand(chatId);
+        break;
+
+      case '/sources':
+      case '/источники':
+        await this.handleSourcesCommand(chatId);
+        break;
+
+      case '/features':
+      case '/функции':
+        await this.handleFeaturesCommand(chatId);
+        break;
+
+      case '/retention':
+        await this.handleRetentionCommand(chatId);
+        break;
+
+      case '/behavior':
+      case '/поведение':
+        await this.handleBehaviorCommand(chatId);
+        break;
+
+      // 💰 LTV и Churn команды
+      case '/ltv':
+        await this.handleLTVCommand(chatId);
+        break;
+
+      case '/churn':
+        await this.handleChurnCommand(chatId);
+        break;
+
+      case '/detailfunnel':
+      case '/воронка_детально':
+        await this.handleDetailedFunnelCommand(chatId);
+        break;
+
+      case '/topcustomers':
+      case '/топклиенты':
+        await this.handleTopCustomersCommand(chatId);
+        break;
+
+      // 🧪 A/B Test команды
+      case '/abtest':
+      case '/ab':
+        await this.handleABTestCommand(chatId);
+        break;
+
+      // 🤖 AI Analytics команды
+      case '/ai':
+      case '/aianalytics':
+        await this.handleAIAnalyticsCommand(chatId);
+        break;
+
+      case '/aimodels':
+      case '/models':
+        await this.handleAIModelsCommand(chatId);
+        break;
+
+      case '/aicost':
+      case '/cost':
+        await this.handleAICostCommand(chatId);
+        break;
+
       default:
         await this.telegram.sendMessage(
           `❓ Неизвестная команда: ${command}\n\nИспользуй /help для списка команд`
@@ -213,22 +290,39 @@ class BotCommandsHandler {
    */
   async handleHelpCommand(chatId) {
     const helpText = `
-📊 *Доступные команды Medicod Analytics Bot*
+📊 <b>Доступные команды Medicod Analytics Bot</b>
 
-📈 *Аналитика:*
+📈 <b>Аналитика:</b>
 /yesterday или /вчера - Отчет за вчера
 /today или /сегодня - Отчет за сегодня
 /week или /неделя - Отчет за неделю
 
-🤖 *AI Ассистент:*
-/ask [вопрос] - Задать вопрос AI
+👥 <b>Поведение пользователей:</b>
+/users - Активные пользователи
+/funnel - Воронка конверсии
+/devices - Статистика по устройствам
+/sources - Источники трафика
+/features - Популярные функции
+/retention - Удержание пользователей
+/behavior - Полный отчет поведения
+
+🧪 <b>A/B Тестирование:</b>
+/abtest - Статистика A/B тестов
+
+🤖 <b>AI Аналитика:</b>
+/ai - Общая AI аналитика (модели, токены, стоимость)
+/aimodels - Статистика по моделям
+/aicost - Анализ стоимости и прогноз
+
+💬 <b>AI Ассистент:</b>
+/ask &lt;вопрос&gt; - Задать вопрос AI
 Или просто напиши вопрос без команды
 
-ℹ️ *Информация:*
+ℹ️ <b>Информация:</b>
 /status - Статус системы
 /help - Это сообщение
 
-💡 *Примеры вопросов:*
+💡 <b>Примеры вопросов:</b>
 • Сколько выручки за последние 3 дня?
 • Какие ошибки были сегодня?
 • Как растет средний чек?
@@ -244,12 +338,34 @@ class BotCommandsHandler {
         { text: '📈 Сегодня', callback_data: '/today' }
       ],
       [
+        { text: '👥 Пользователи', callback_data: '/users' },
+        { text: '🔥 Воронка', callback_data: '/funnel' }
+      ],
+      [
+        { text: '📱 Устройства', callback_data: '/devices' },
+        { text: '🌐 Источники', callback_data: '/sources' }
+      ],
+      [
+        { text: '⭐ Функции', callback_data: '/features' },
+        { text: '📊 Retention', callback_data: '/retention' }
+      ],
+      [
+        { text: '👥 Полный отчёт поведения', callback_data: '/behavior' }
+      ],
+      [
+        { text: '🧪 A/B Тесты', callback_data: '/abtest' }
+      ],
+      [
+        { text: '🤖 AI Аналитика', callback_data: '/ai' },
+        { text: '📊 AI Модели', callback_data: '/aimodels' }
+      ],
+      [
         { text: '💡 Статус', callback_data: '/status' },
         { text: '❓ Задать вопрос AI', callback_data: '/ask' }
       ]
     ]);
 
-    await this.telegram.sendMessage(helpText, 'Markdown', keyboard);
+    await this.telegram.sendMessage(helpText, 'HTML', keyboard);
   }
 
   /**
@@ -318,6 +434,14 @@ class BotCommandsHandler {
 
       const keyboard = this.telegram.createInlineKeyboard([
         [
+          { text: '👥 Пользователи', callback_data: '/users' },
+          { text: '🔥 Воронка', callback_data: '/funnel' }
+        ],
+        [
+          { text: '📱 Устройства', callback_data: '/devices' },
+          { text: '🌐 Источники', callback_data: '/sources' }
+        ],
+        [
           { text: '📅 Вчера', callback_data: '/yesterday' },
           { text: '📈 Сегодня', callback_data: '/today' }
         ],
@@ -327,7 +451,7 @@ class BotCommandsHandler {
         ]
       ]);
 
-      await this.telegram.sendMessage(message, 'Markdown', keyboard);
+      await this.telegram.sendMessage(message, 'HTML', keyboard);
     } catch (error) {
       console.error('❌ Ошибка:', error);
       await this.telegram.sendMessage('❌ Ошибка генерации отчета: ' + error.message);
@@ -493,6 +617,634 @@ class BotCommandsHandler {
       };
     } catch (error) {
       return { payments: 0, revenue: 0 };
+    }
+  }
+
+  /**
+   * 👥 КОМАНДЫ ПОВЕДЕНИЯ ПОЛЬЗОВАТЕЛЕЙ
+   */
+
+  /**
+   * /users - Активные пользователи
+   */
+  async handleUsersCommand(chatId) {
+    try {
+      await this.telegram.sendMessage('👥 Получение данных о пользователях...');
+
+      const users = this.analytics.analyzeBehaviorUsers();
+
+      if (!users) {
+        await this.telegram.sendMessage('⚠️ Данные о поведении пользователей недоступны');
+        return;
+      }
+
+      let msg = `👥 *Активные пользователи (последние 7 дней)*\n\n`;
+      msg += `• Всего пользователей: *${users.total_users}*\n`;
+      msg += `• Новых: ${users.new_users}\n`;
+      msg += `• Вернулось: ${users.returning_users}\n`;
+      msg += `• Returning rate: ${users.total_users > 0 ? ((users.returning_users / users.total_users) * 100).toFixed(1) : 0}%\n\n`;
+
+      if (users.avg_session_duration) {
+        const avgMinutes = Math.round(users.avg_session_duration / 60);
+        msg += `⏱️ *Средняя сессия:*\n`;
+        msg += `• Длительность: ${avgMinutes} мин\n`;
+        msg += `• Просмотров страниц: ${(users.avg_page_views || 0).toFixed(1)}\n`;
+        msg += `• Загрузок анализов: ${(users.avg_analyses_uploaded || 0).toFixed(1)}\n`;
+      }
+
+      const keyboard = this.telegram.createInlineKeyboard([
+        [
+          { text: '🔥 Воронка', callback_data: '/funnel' },
+          { text: '👥 Полный отчёт', callback_data: '/behavior' }
+        ],
+        [
+          { text: '📊 Неделя', callback_data: '/week' },
+          { text: '❓ Помощь', callback_data: '/help' }
+        ]
+      ]);
+
+      await this.telegram.sendMessage(msg, 'Markdown', keyboard);
+    } catch (error) {
+      console.error('❌ Ошибка:', error);
+      await this.telegram.sendMessage('❌ Ошибка получения данных: ' + error.message);
+    }
+  }
+
+  /**
+   * /funnel - Воронка конверсии
+   */
+  async handleFunnelCommand(chatId) {
+    try {
+      await this.telegram.sendMessage('🔥 Получение воронки конверсии...');
+
+      const funnel = this.analytics.analyzeBehaviorFunnel();
+
+      if (!funnel) {
+        await this.telegram.sendMessage('⚠️ Данные воронки недоступны');
+        return;
+      }
+
+      let msg = `🔥 *Воронка конверсии (последние 7 дней)*\n\n`;
+      msg += `📊 *Этапы:*\n`;
+      msg += `1. Всего сессий: *${funnel.total_sessions}*\n`;
+      msg += `2. Загрузили анализ: ${funnel.uploaded_analysis} (${funnel.upload_rate}%)\n`;
+      msg += `3. Показан платёж: ${funnel.payment_triggered} (${funnel.payment_trigger_rate}%)\n`;
+      msg += `4. Оплатили: ${funnel.payment_completed} (${funnel.conversion_rate}%)\n\n`;
+
+      msg += `💡 *Инсайты:*\n`;
+      if (funnel.upload_rate < 50) {
+        msg += `⚠️ Низкий процент загрузки анализов\n`;
+      }
+      if (funnel.conversion_rate > 10) {
+        msg += `✅ Отличная конверсия в оплату!\n`;
+      } else if (funnel.conversion_rate > 5) {
+        msg += `📈 Хорошая конверсия в оплату\n`;
+      } else {
+        msg += `⚠️ Низкая конверсия в оплату\n`;
+      }
+
+      await this.telegram.sendMessage(msg);
+    } catch (error) {
+      console.error('❌ Ошибка:', error);
+      await this.telegram.sendMessage('❌ Ошибка получения воронки: ' + error.message);
+    }
+  }
+
+  /**
+   * /devices - Статистика по устройствам
+   */
+  async handleDevicesCommand(chatId) {
+    try {
+      await this.telegram.sendMessage('📱 Получение статистики по устройствам...');
+
+      const devices = this.analytics.analyzeBehaviorDevices();
+
+      if (!devices || devices.length === 0) {
+        await this.telegram.sendMessage('⚠️ Данные по устройствам недоступны');
+        return;
+      }
+
+      let msg = `📱 *Статистика по устройствам*\n\n`;
+
+      devices.forEach(device => {
+        const convRate = device.session_count > 0
+          ? ((device.conversions / device.session_count) * 100).toFixed(1)
+          : 0;
+        const avgDuration = Math.round((device.avg_duration || 0) / 60);
+
+        msg += `*${device.device_type}*\n`;
+        msg += `• Сессий: ${device.session_count}\n`;
+        msg += `• Длительность: ${avgDuration} мин\n`;
+        msg += `• Просмотров: ${(device.avg_page_views || 0).toFixed(1)}\n`;
+        msg += `• Конверсия: ${convRate}%\n\n`;
+      });
+
+      await this.telegram.sendMessage(msg);
+    } catch (error) {
+      console.error('❌ Ошибка:', error);
+      await this.telegram.sendMessage('❌ Ошибка получения данных: ' + error.message);
+    }
+  }
+
+  /**
+   * /sources - Источники трафика
+   */
+  async handleSourcesCommand(chatId) {
+    try {
+      await this.telegram.sendMessage('🌐 Получение источников трафика...');
+
+      const sources = this.analytics.analyzeBehaviorSources();
+
+      if (!sources || sources.length === 0) {
+        await this.telegram.sendMessage('⚠️ Данные по источникам недоступны');
+        return;
+      }
+
+      let msg = `🌐 *Источники трафика*\n\n`;
+
+      sources.slice(0, 10).forEach((source, i) => {
+        msg += `${i + 1}. *${source.source}*`;
+        if (source.utm_medium) msg += ` (${source.utm_medium})`;
+        msg += `\n`;
+        msg += `   • Сессий: ${source.sessions}\n`;
+        msg += `   • Пользователей: ${source.unique_users}\n`;
+        msg += `   • Конверсий: ${source.conversions} (${source.conversion_rate}%)\n\n`;
+      });
+
+      await this.telegram.sendMessage(msg);
+    } catch (error) {
+      console.error('❌ Ошибка:', error);
+      await this.telegram.sendMessage('❌ Ошибка получения источников: ' + error.message);
+    }
+  }
+
+  /**
+   * /features - Популярные функции
+   */
+  async handleFeaturesCommand(chatId) {
+    try {
+      await this.telegram.sendMessage('⭐ Получение популярных функций...');
+
+      const features = this.analytics.analyzeBehaviorFeatures(10);
+
+      if (!features || features.length === 0) {
+        await this.telegram.sendMessage('⚠️ Данные по функциям недоступны');
+        return;
+      }
+
+      let msg = `⭐ *Топ популярных функций*\n\n`;
+
+      features.forEach((feature, i) => {
+        msg += `${i + 1}. *${feature.feature_name}*\n`;
+        msg += `   • Использований: ${feature.total_usage}\n`;
+        msg += `   • Пользователей: ${feature.unique_users}\n`;
+        msg += `   • Успешность: ${feature.success_rate}%\n\n`;
+      });
+
+      await this.telegram.sendMessage(msg);
+    } catch (error) {
+      console.error('❌ Ошибка:', error);
+      await this.telegram.sendMessage('❌ Ошибка получения функций: ' + error.message);
+    }
+  }
+
+  /**
+   * /retention - Удержание пользователей
+   */
+  async handleRetentionCommand(chatId) {
+    try {
+      await this.telegram.sendMessage('📊 Получение retention данных...');
+
+      const retention = this.analytics.analyzeBehaviorRetention(5);
+
+      if (!retention || retention.length === 0) {
+        await this.telegram.sendMessage('⚠️ Данные retention недоступны');
+        return;
+      }
+
+      let msg = `📊 *Удержание пользователей (Cohort Retention)*\n\n`;
+
+      retention.forEach(cohort => {
+        const date = new Date(cohort.cohort_date).toLocaleDateString('ru-RU', { month: 'short', day: 'numeric' });
+        msg += `*${date}* (${cohort.cohort_size} юзеров)\n`;
+        msg += `• Week 1: ${cohort.week1_retention_rate}%\n`;
+        msg += `• Month 1: ${cohort.month1_retention_rate}%\n\n`;
+      });
+
+      await this.telegram.sendMessage(msg);
+    } catch (error) {
+      console.error('❌ Ошибка:', error);
+      await this.telegram.sendMessage('❌ Ошибка получения retention: ' + error.message);
+    }
+  }
+
+  /**
+   * /behavior - Полный отчет поведения
+   */
+  async handleBehaviorCommand(chatId) {
+    try {
+      await this.telegram.sendMessage('👥 Генерация полного отчета поведения...');
+
+      const users = this.analytics.analyzeBehaviorUsers();
+      const funnel = this.analytics.analyzeBehaviorFunnel();
+      const devices = this.analytics.analyzeBehaviorDevices();
+      const sources = this.analytics.analyzeBehaviorSources();
+      const features = this.analytics.analyzeBehaviorFeatures(5);
+      const engagement = this.analytics.analyzeBehaviorEngagement();
+
+      if (!users) {
+        await this.telegram.sendMessage('⚠️ Данные о поведении недоступны');
+        return;
+      }
+
+      let msg = `👥 *Полный отчет поведения пользователей*\n`;
+      msg += `_Последние 7 дней_\n\n`;
+
+      // Пользователи
+      msg += `*Активные пользователи:*\n`;
+      msg += `• Всего: ${users.total_users} (новых: ${users.new_users})\n`;
+      msg += `• Среднее время сессии: ${Math.round(users.avg_session_duration / 60)} мин\n\n`;
+
+      // Воронка
+      if (funnel) {
+        msg += `*Воронка:*\n`;
+        msg += `• Сессий → Анализ: ${funnel.upload_rate}%\n`;
+        msg += `• Анализ → Платёж: ${funnel.payment_trigger_rate}%\n`;
+        msg += `• Итоговая конверсия: ${funnel.conversion_rate}%\n\n`;
+      }
+
+      // Устройства
+      if (devices && devices.length > 0) {
+        msg += `*Устройства (топ 3):*\n`;
+        devices.slice(0, 3).forEach(d => {
+          msg += `• ${d.device_type}: ${d.session_count} сессий\n`;
+        });
+        msg += `\n`;
+      }
+
+      // Источники
+      if (sources && sources.length > 0) {
+        msg += `*Источники (топ 3):*\n`;
+        sources.slice(0, 3).forEach(s => {
+          msg += `• ${s.source}: ${s.sessions} сессий (${s.conversion_rate}% конв)\n`;
+        });
+        msg += `\n`;
+      }
+
+      // Функции
+      if (features && features.length > 0) {
+        msg += `*Функции (топ 5):*\n`;
+        features.forEach((f, i) => {
+          msg += `${i + 1}. ${f.feature_name}: ${f.total_usage} раз\n`;
+        });
+        msg += `\n`;
+      }
+
+      // Лучший день недели
+      if (engagement && engagement.length > 0) {
+        const bestDay = engagement.reduce((max, day) =>
+          day.sessions > (max.sessions || 0) ? day : max, {});
+        msg += `*Engagement:*\n`;
+        msg += `• Лучший день: ${bestDay.day_name} (${bestDay.sessions} сессий)\n`;
+      }
+
+      await this.telegram.sendMessage(msg);
+    } catch (error) {
+      console.error('❌ Ошибка:', error);
+      await this.telegram.sendMessage('❌ Ошибка генерации отчета: ' + error.message);
+    }
+  }
+
+  /**
+   * 🧪 A/B TEST КОМАНДЫ
+   */
+
+  /**
+   * /abtest - Статистика A/B тестов
+   */
+  async handleABTestCommand(chatId) {
+    // Просто перенаправляем на статистику
+    await this.handleABTestStatsCommand(chatId);
+  }
+
+
+  /**
+   * Статистика A/B теста
+   */
+  async handleABTestStatsCommand(chatId) {
+    try {
+      await this.telegram.sendMessage('📊 Получение статистики A/B теста...');
+
+      // Пытаемся получить статистику из базы данных
+      const testId = 'landing_redesign_2025';
+      let stats = null;
+
+      try {
+        // Если есть доступ к базе данных через analytics service
+        if (this.analytics.db) {
+          const query = `
+            SELECT
+              variant,
+              COUNT(DISTINCT user_id) as users,
+              COUNT(DISTINCT CASE WHEN converted = 1 AND conversion_event = 'start_analysis_click' THEN user_id END) as analysis_starts,
+              COUNT(DISTINCT CASE WHEN converted = 1 AND conversion_event = 'payment_completed' THEN user_id END) as payments
+            FROM ab_test_assignments
+            WHERE test_id = ?
+            GROUP BY variant
+          `;
+
+          stats = this.analytics.db.prepare(query).all(testId);
+        }
+      } catch (error) {
+        console.log('⚠️ Не удалось получить статистику из БД:', error.message);
+      }
+
+      let msg = `📊 *Статистика A/B теста "Редизайн лендинга"*\n\n`;
+
+      if (stats && stats.length > 0) {
+        stats.forEach(variant => {
+          const emoji = variant.variant === 'A' ? '🔵' : '🟢';
+          const variantName = variant.variant === 'A' ? '(старый дизайн)' : '(новый дизайн)';
+
+          // Рассчитываем проценты
+          const analysisRate = variant.users > 0 ? ((variant.analysis_starts / variant.users) * 100).toFixed(1) : '0.0';
+          const paymentRate = variant.analysis_starts > 0 ? ((variant.payments / variant.analysis_starts) * 100).toFixed(1) : '0.0';
+
+          msg += `${emoji} *Вариант ${variant.variant}* ${variantName}\n`;
+          msg += `• Посетителей: ${variant.users}\n`;
+          msg += `• ▶️ Начали анализ: ${variant.analysis_starts} (${analysisRate}%) ← основная метрика\n`;
+          msg += `• 💳 Из них оплатили: ${variant.payments} (${paymentRate}%) ← доп. метрика\n\n`;
+        });
+
+        // Определяем победителя по основной метрике (начали анализ)
+        if (stats.length === 2) {
+          const variantA = stats.find(s => s.variant === 'A');
+          const variantB = stats.find(s => s.variant === 'B');
+
+          if (variantA && variantB) {
+            const rateA = variantA.users > 0 ? (variantA.analysis_starts / variantA.users) * 100 : 0;
+            const rateB = variantB.users > 0 ? (variantB.analysis_starts / variantB.users) * 100 : 0;
+            const diff = rateB - rateA;
+
+            if (Math.abs(diff) > 1) {
+              msg += `🏆 *Лидирует:* Вариант ${diff > 0 ? 'B' : 'A'} (+${Math.abs(diff).toFixed(1)}% по клику "Начать анализ")\n\n`;
+            } else {
+              msg += `⚖️ Варианты показывают примерно одинаковые результаты\n\n`;
+            }
+          }
+        }
+
+        msg += `💡 *Минимальные требования для завершения теста:*\n`;
+        msg += `• Минимум 1000 посетителей на вариант\n`;
+        msg += `• Минимум 100 кликов "Начать анализ" на вариант\n`;
+        msg += `• Статистическая значимость p < 0.05\n\n`;
+        msg += `📈 Для детального анализа используй SQL запросы к БД или Yandex Metrika`;
+      } else {
+        msg += `⚠️ *Данные пока недоступны*\n\n`;
+        msg += `Возможные причины:\n`;
+        msg += `• Backend с A/B endpoints еще не задеплоен\n`;
+        msg += `• Тест только что запущен, данных нет\n`;
+        msg += `• База данных недоступна\n\n`;
+        msg += `🔗 *Проверь:*\n`;
+        msg += `1. Backend задеплоен: https://api.medicod.ru/health\n`;
+        msg += `2. Endpoints доступны: POST /api/analytics/ab-test/assign\n`;
+        msg += `3. База данных: SELECT * FROM ab_test_assignments;\n\n`;
+        msg += `📖 Подробнее: AB_TEST_IMPLEMENTATION_COMPLETE.md`;
+      }
+
+      const keyboard = this.telegram.createInlineKeyboard([
+        [
+          { text: '🔄 Обновить статистику', callback_data: '/abtest' }
+        ],
+        [
+          { text: '⬅️ Назад в меню', callback_data: '/help' }
+        ]
+      ]);
+
+      await this.telegram.sendMessage(msg, 'Markdown', keyboard);
+    } catch (error) {
+      console.error('❌ Ошибка:', error);
+      await this.telegram.sendMessage('❌ Ошибка получения статистики: ' + error.message);
+    }
+  }
+
+  /**
+   * 🤖 AI ANALYTICS КОМАНДЫ
+   */
+
+  /**
+   * /ai - Общая AI аналитика
+   */
+  async handleAIAnalyticsCommand(chatId) {
+    try {
+      await this.telegram.sendMessage('🤖 Получение AI аналитики...');
+
+      if (!this.analytics.db || !this.analytics.db.isAvailable()) {
+        await this.telegram.sendMessage('⚠️ База данных недоступна');
+        return;
+      }
+
+      // Импортируем AIAnalyticsQueries
+      const AIAnalyticsQueries = await import('./aiAnalyticsQueries.js');
+
+      // Получаем общую статистику
+      const totalStats = AIAnalyticsQueries.getAITotalStats();
+
+      if (!totalStats || totalStats.total_requests === 0) {
+        await this.telegram.sendMessage('📊 AI аналитика пока недоступна.\n\nВозможно, еще не было запросов к AI.');
+        return;
+      }
+
+      const formatCost = (cost) => {
+        if (!cost || cost === 0) return 'FREE';
+        return `$${cost.toFixed(6)}`;
+      };
+
+      let msg = `🤖 *AI АНАЛИТИКА*\n`;
+      msg += `_Период: ${new Date(totalStats.first_request).toLocaleDateString('ru-RU')} - ${new Date(totalStats.last_request).toLocaleDateString('ru-RU')}_\n\n`;
+
+      msg += `📊 *Общая статистика:*\n`;
+      msg += `• Всего запросов: ${totalStats.total_requests}\n`;
+      msg += `• Использовано моделей: ${totalStats.models_used}\n`;
+      msg += `• Всего токенов: ${(totalStats.total_tokens || 0).toLocaleString()}\n`;
+      msg += `• Общая стоимость: ${formatCost(totalStats.total_cost_usd)}\n`;
+      msg += `• Среднее время: ${Math.round(totalStats.avg_response_time_ms || 0)}ms\n\n`;
+
+      // Бесплатные vs платные
+      const freeVsPaid = AIAnalyticsQueries.getFreeVsPaidRatio();
+      if (freeVsPaid) {
+        msg += `💰 *Стоимость:*\n`;
+        msg += `• Бесплатных: ${freeVsPaid.free_requests} (${freeVsPaid.free_percentage}%)\n`;
+        msg += `• Платных: ${freeVsPaid.paid_requests}\n`;
+        if (freeVsPaid.total_cost > 0) {
+          msg += `• Расходы: ${formatCost(freeVsPaid.total_cost)}\n`;
+        }
+        msg += `\n`;
+      }
+
+      // Прогноз
+      const projection = AIAnalyticsQueries.getMonthlyProjection();
+      if (projection && projection.requests_last_7_days > 0) {
+        msg += `🔮 *Прогноз на месяц:*\n`;
+        msg += `• Запросов: ~${projection.projected_monthly_requests}\n`;
+        msg += `• Стоимость: ~${formatCost(projection.projected_monthly_cost)}\n`;
+      }
+
+      const keyboard = this.telegram.createInlineKeyboard([
+        [
+          { text: '📊 Модели', callback_data: '/aimodels' },
+          { text: '💰 Стоимость', callback_data: '/aicost' }
+        ],
+        [
+          { text: '🔄 Обновить', callback_data: '/ai' },
+          { text: '⬅️ Назад', callback_data: '/help' }
+        ]
+      ]);
+
+      await this.telegram.sendMessage(msg, 'Markdown', keyboard);
+    } catch (error) {
+      console.error('❌ Ошибка:', error);
+      await this.telegram.sendMessage('❌ Ошибка получения AI аналитики: ' + error.message);
+    }
+  }
+
+  /**
+   * /aimodels - Статистика по моделям
+   */
+  async handleAIModelsCommand(chatId) {
+    try {
+      await this.telegram.sendMessage('📊 Получение статистики по AI моделям...');
+
+      if (!this.analytics.db || !this.analytics.db.isAvailable()) {
+        await this.telegram.sendMessage('⚠️ База данных недоступна');
+        return;
+      }
+
+      const AIAnalyticsQueries = await import('./aiAnalyticsQueries.js');
+
+      const modelStats = AIAnalyticsQueries.getAIModelUsageStats();
+
+      if (!modelStats || modelStats.length === 0) {
+        await this.telegram.sendMessage('📊 Статистика по моделям пока недоступна.');
+        return;
+      }
+
+      const formatCost = (cost) => {
+        if (!cost || cost === 0) return 'FREE';
+        return `$${cost.toFixed(6)}`;
+      };
+
+      let msg = `📊 *СТАТИСТИКА ПО AI МОДЕЛЯМ*\n\n`;
+
+      modelStats.forEach((model, i) => {
+        msg += `${i + 1}. *${model.ai_model}*\n`;
+        msg += `   • Запросов: ${model.requests_count}\n`;
+        msg += `   • Токенов: ${(model.total_tokens || 0).toLocaleString()}\n`;
+        msg += `   • Стоимость: ${formatCost(model.total_cost_usd)}\n`;
+        msg += `   • Ср. время: ${Math.round(model.avg_response_time_ms || 0)}ms\n\n`;
+      });
+
+      // Сравнение стоимости
+      const comparison = AIAnalyticsQueries.compareModelCosts();
+      if (comparison && comparison.length > 0) {
+        msg += `💰 *Стоимость за 1K токенов:*\n`;
+        comparison.forEach(model => {
+          if (model.cost_per_1k_tokens > 0) {
+            msg += `• ${model.ai_model}: $${model.cost_per_1k_tokens.toFixed(6)}\n`;
+          }
+        });
+      }
+
+      const keyboard = this.telegram.createInlineKeyboard([
+        [
+          { text: '🤖 Общая аналитика', callback_data: '/ai' },
+          { text: '💰 Стоимость', callback_data: '/aicost' }
+        ],
+        [
+          { text: '🔄 Обновить', callback_data: '/aimodels' },
+          { text: '⬅️ Назад', callback_data: '/help' }
+        ]
+      ]);
+
+      await this.telegram.sendMessage(msg, 'Markdown', keyboard);
+    } catch (error) {
+      console.error('❌ Ошибка:', error);
+      await this.telegram.sendMessage('❌ Ошибка получения статистики моделей: ' + error.message);
+    }
+  }
+
+  /**
+   * /aicost - Анализ стоимости AI
+   */
+  async handleAICostCommand(chatId) {
+    try {
+      await this.telegram.sendMessage('💰 Анализ стоимости AI...');
+
+      if (!this.analytics.db || !this.analytics.db.isAvailable()) {
+        await this.telegram.sendMessage('⚠️ База данных недоступна');
+        return;
+      }
+
+      const AIAnalyticsQueries = await import('./aiAnalyticsQueries.js');
+
+      const formatCost = (cost) => {
+        if (!cost || cost === 0) return 'FREE';
+        return `$${cost.toFixed(6)}`;
+      };
+
+      // Топ дорогих запросов
+      const topCostly = AIAnalyticsQueries.getTopCostlyRequests(5);
+
+      let msg = `💰 *АНАЛИЗ СТОИМОСТИ AI*\n\n`;
+
+      // Общая стоимость
+      const totalStats = AIAnalyticsQueries.getAITotalStats();
+      if (totalStats) {
+        msg += `📊 *Общие расходы:*\n`;
+        msg += `• Всего: ${formatCost(totalStats.total_cost_usd)}\n`;
+        msg += `• Средний запрос: ${formatCost(totalStats.avg_cost_per_request)}\n\n`;
+      }
+
+      // Прогноз
+      const projection = AIAnalyticsQueries.getMonthlyProjection();
+      if (projection && projection.requests_last_7_days > 0) {
+        msg += `🔮 *Прогноз на месяц:*\n`;
+        msg += `• За 7 дней: ${formatCost(projection.cost_last_7_days)}\n`;
+        msg += `• Прогноз 30 дней: ${formatCost(projection.projected_monthly_cost)}\n\n`;
+      }
+
+      // Бесплатные vs платные
+      const freeVsPaid = AIAnalyticsQueries.getFreeVsPaidRatio();
+      if (freeVsPaid) {
+        msg += `🆓 *Распределение:*\n`;
+        msg += `• Бесплатные: ${freeVsPaid.free_percentage}%\n`;
+        msg += `• Платные: ${(100 - freeVsPaid.free_percentage).toFixed(2)}%\n\n`;
+      }
+
+      // Топ дорогих запросов
+      if (topCostly && topCostly.length > 0) {
+        msg += `💸 *Топ-5 дорогих запросов:*\n`;
+        topCostly.forEach((req, i) => {
+          const date = new Date(req.created_at).toLocaleDateString('ru-RU', { month: 'short', day: 'numeric' });
+          msg += `${i + 1}. ${req.ai_model}: ${formatCost(req.ai_cost_usd)} (${date})\n`;
+        });
+      }
+
+      const keyboard = this.telegram.createInlineKeyboard([
+        [
+          { text: '🤖 Общая аналитика', callback_data: '/ai' },
+          { text: '📊 Модели', callback_data: '/aimodels' }
+        ],
+        [
+          { text: '🔄 Обновить', callback_data: '/aicost' },
+          { text: '⬅️ Назад', callback_data: '/help' }
+        ]
+      ]);
+
+      await this.telegram.sendMessage(msg, 'Markdown', keyboard);
+    } catch (error) {
+      console.error('❌ Ошибка:', error);
+      await this.telegram.sendMessage('❌ Ошибка анализа стоимости: ' + error.message);
     }
   }
 }

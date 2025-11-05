@@ -245,7 +245,18 @@ class AIAnalysisService {
   formatAIAnalysisForTelegram(analysis) {
     if (!analysis) return '';
 
-    return `\n\n🤖 *AI ИНСАЙТЫ*\n\n${analysis}`;
+    // Конвертируем Markdown в HTML и экранируем спецсимволы
+    let formatted = analysis
+      // Escape HTML спецсимволы
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      // Конвертируем Markdown bold в HTML
+      .replace(/\*\*([^\*]+)\*\*/g, '<b>$1</b>')
+      // Конвертируем Markdown single * в HTML bold (для заголовков вроде *АНАЛИЗ*)
+      .replace(/\*([^\*\n]+)\*/g, '<b>$1</b>');
+
+    return `\n\n🤖 <b>AI ИНСАЙТЫ</b>\n\n${formatted}`;
   }
 
   /**
