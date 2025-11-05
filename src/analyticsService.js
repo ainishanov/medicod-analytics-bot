@@ -8,6 +8,7 @@ import { promisify } from 'util';
 import AIAnalysisService from './aiAnalysisService.js';
 import AlertService from './alertService.js';
 import YandexMetrikaService from './yandexMetrikaService.js';
+import { getDatabaseInstance } from './database.js';
 import os from 'os';
 
 const execAsync = promisify(exec);
@@ -18,10 +19,17 @@ class AnalyticsService {
     this.aiService = new AIAnalysisService();
     this.alertService = new AlertService();
     this.metrikaService = new YandexMetrikaService();
+    this.db = getDatabaseInstance();
     this.isWindows = os.platform() === 'win32';
 
     if (this.isWindows) {
       console.log('⚠️  Windows обнаружена - используются mock данные для разработки');
+    }
+
+    if (this.db && this.db.isAvailable()) {
+      console.log('✅ Аналитика подключена к SQLite базе данных');
+    } else {
+      console.log('⚠️  База данных недоступна, используются mock/логи');
     }
   }
 
@@ -87,6 +95,12 @@ class AnalyticsService {
    * Анализирует платежи
    */
   async analyzePayments(since = '7 days ago') {
+    // Пробуем получить данные из БД
+    if (this.db && this.db.isAvailable()) {
+      return await this.analyzePaymentsFromDB(since);
+    }
+
+    // Fallback на mock/логи
     let payments;
 
     if (this.isWindows) {
@@ -125,6 +139,51 @@ class AnalyticsService {
       total: payments.length,
       revenue: payments.reduce((sum, p) => sum + p.amount, 0),
       avgCheck: payments.length > 0 ? Math.round(payments.reduce((sum, p) => sum + p.amount, 0) / payments.length) : 0,
+      byDay
+    };
+  }
+
+  /**
+   * Анализирует платежи из базы данных (НОВЫЙ МЕТОД)
+   */
+  async analyzePaymentsFromDB(since = '7 days ago') {
+    // Парсим период
+    const daysMap = {
+      'today': 0,
+      '1 day ago': 1,
+      '7 days ago': 7,
+      '14 days ago': 14
+    };
+    const days = daysMap[since] || 7;
+
+    const dateFrom = new Date();
+    dateFrom.setDate(dateFrom.getDate() - days);
+    dateFrom.setHours(0, 0, 0, 0);
+
+    // Получаем статистику из БД
+    const stats = this.db.getPaymentStats({
+      dateFrom: dateFrom.toISOString()
+    });
+
+    // Получаем статистику по дням
+    const dailyStats = this.db.getDailyStats({
+      dateFrom: dateFrom.toISOString()
+    });
+
+    // Форматируем в формат совместимый с предыдущей версией
+    const byDay = {};
+    dailyStats.forEach(day => {
+      const date = new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+      byDay[date] = {
+        count: day.count,
+        revenue: Math.round(day.revenue)
+      };
+    });
+
+    return {
+      total: stats?.total_count || 0,
+      revenue: Math.round(stats?.total_revenue || 0),
+      avgCheck: Math.round(stats?.avg_amount || 0),
       byDay
     };
   }
