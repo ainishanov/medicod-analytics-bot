@@ -156,11 +156,12 @@ class AnalyticsService {
       '7 days ago': 7,
       '14 days ago': 14
     };
-    const days = daysMap[since] || 7;
+    const days = daysMap[since] !== undefined ? daysMap[since] : 7;
 
+    // Расчёт даты с учётом локального времени сервера (MSK)
     const dateFrom = new Date();
     dateFrom.setDate(dateFrom.getDate() - days);
-    dateFrom.setHours(0, 0, 0, 0);
+    dateFrom.setHours(0, 0, 0, 0); // 00:00 локального времени (MSK на сервере)
 
     // Получаем статистику из БД
     const stats = this.db.getPaymentStats({
@@ -221,11 +222,32 @@ class AnalyticsService {
   }
 
   /**
-   * Анализирует использование функций
+   * Анализирует использование функций (оптимизировано - из БД)
    */
   async analyzeFeatureUsage(since = '7 days ago') {
+    // Приоритет 1: Пробуем получить из БД
+    if (this.db && this.db.isAvailable()) {
+      const daysMap = { 'today': 0, '1 day ago': 1, '7 days ago': 7, '14 days ago': 14 };
+      const days = daysMap[since] !== undefined ? daysMap[since] : 7;
+
+      const dateFrom = new Date();
+      dateFrom.setDate(dateFrom.getDate() - days);
+      dateFrom.setHours(0, 0, 0, 0);
+
+      const usage = this.db.getFeatureUsage({
+        dateFrom: dateFrom.toISOString()
+      });
+
+      if (usage) {
+        return {
+          ocr: usage.ocr_count || 0,
+          ai: usage.ai_count || 0
+        };
+      }
+    }
+
+    // Приоритет 2: Fallback на mock для Windows/dev
     if (this.isWindows) {
-      // Mock данные для Windows
       const daysMap = { 'today': 1, '1 day ago': 1, '7 days ago': 7 };
       const days = daysMap[since] || 7;
 
@@ -235,6 +257,7 @@ class AnalyticsService {
       };
     }
 
+    // Приоритет 3: Последний вариант - парсинг логов (legacy)
     const logs = await this.getLogs(since);
 
     return {
@@ -790,99 +813,69 @@ class AnalyticsService {
   }
 
   /**
-   * Форматирует отчет для Telegram
+   * Форматирует отчет для Telegram (оптимизированная версия)
    */
   formatForTelegram(report) {
-    const { payments, errors, features, funnel, aiAnalysis, comparison } = report;
+    const { payments, errors, features, funnel, aiAnalysis, comparison, alerts } = report;
 
-    let msg = `📊 <b>Еженедельный отчет Medicod</b>\n`;
-    msg += `<i>${new Date().toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    })}</i>\n\n`;
+    let msg = `📊 <b>Medicod Weekly</b>\n`;
+    msg += `<i>${new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}</i>\n\n`;
 
-    msg += `💰 <b>Финансы</b>\n`;
-
-    // Платежи с WoW сравнением
-    msg += `• Платежей: <b>${payments.total}</b>`;
-    if (comparison?.payments?.total) {
-      const c = comparison.payments.total;
-      msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${c.emoji}`;
+    // 1. AI ИНСАЙТЫ В НАЧАЛЕ (самое ценное!)
+    if (aiAnalysis) {
+      msg += this.aiService.formatAIAnalysisForTelegram(aiAnalysis);
+      msg += `\n`;
     }
-    msg += `\n`;
 
-    // Выручка с WoW сравнением
+    // 2. Критические алерты (если есть)
+    if (alerts && alerts.critical && alerts.critical.length > 0) {
+      msg += `🚨 <b>ТРЕБУЕТ ВНИМАНИЯ</b>\n`;
+      alerts.critical.forEach(alert => {
+        msg += `• ${alert.message}\n`;
+      });
+      msg += `\n`;
+    }
+
+    // 3. Ключевые финансовые метрики (компактно)
+    msg += `💰 <b>Финансы</b>\n`;
     msg += `• Выручка: <b>${payments.revenue}₽</b>`;
     if (comparison?.payments?.revenue) {
       const c = comparison.payments.revenue;
-      msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${c.emoji}`;
+      msg += ` ${c.emoji} ${c.percent > 0 ? '+' : ''}${c.percent}%`;
+    }
+    msg += `\n• Платежей: ${payments.total}`;
+    if (comparison?.payments?.total) {
+      const c = comparison.payments.total;
+      if (Math.abs(c.percent) >= 10) { // Показываем WoW только если значимое изменение
+        msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}%)`;
+      }
     }
     msg += `\n`;
 
-    // Средний чек с WoW сравнением
-    msg += `• Средний чек: <b>${payments.avgCheck}₽</b>`;
-    if (comparison?.payments?.avgCheck) {
-      const c = comparison.payments.avgCheck;
-      msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${c.emoji}`;
+    // 4. Конверсия (ключевая метрика)
+    if (funnel && funnel.conversionVisitToPayment > 0) {
+      msg += `• Конверсия: ${funnel.conversionVisitToPayment}%\n`;
     }
-    msg += `\n\n`;
+    msg += `\n`;
 
-    // Ключевые метрики воронки
-    if (funnel) {
-      msg += `🔥 <b>Конверсии</b>\n`;
-      msg += `• Визит → Платеж: <b>${funnel.conversionVisitToPayment}%</b>\n`;
-      if (funnel.aiAnalyses > 0) {
-        msg += `• AI → Платеж: ${funnel.conversionAIToPayment}%\n`;
-      }
-      msg += `\n`;
-    }
-
-    // Только если есть использование функций
-    if (features.ocr > 0 || features.ai > 0) {
-      msg += `🤖 <b>Функции</b>\n`;
-      if (features.ocr > 0) {
-        msg += `• OCR: ${features.ocr}`;
-        if (comparison?.features?.ocr) {
-          const c = comparison.features.ocr;
-          msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${c.emoji}`;
-        }
-        msg += `\n`;
-      }
-      if (features.ai > 0) {
-        msg += `• AI: ${features.ai}`;
-        if (comparison?.features?.ai) {
-          const c = comparison.features.ai;
-          msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${c.emoji}`;
-        }
-        msg += `\n`;
-      }
-      msg += `\n`;
-    }
-
-    // Ошибки - только если есть проблемы
-    if (errors.total > 0) {
-      msg += `⚠️ <b>Ошибки</b>\n`;
-      msg += `• Всего: ${errors.total}`;
-      if (comparison?.errors?.total) {
-        const c = comparison.errors.total;
-        const errorEmoji = c.trend === 'down' ? '✅' : c.trend === 'up' ? '⚠️' : '➡️';
-        msg += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW) ${errorEmoji}`;
-      }
-      msg += `\n\n`;
-    }
-
+    // 5. Прогноз (только если отстаем от цели)
     const dailyAvg = Math.round(payments.revenue / 7);
     const monthlyProjection = dailyAvg * 30;
     const monthlyGoal = 30000;
-    const projectionProgress = Math.round((monthlyProjection / monthlyGoal) * 100);
+    const gap = monthlyGoal - monthlyProjection;
 
-    msg += `🎯 <b>Прогноз</b>\n`;
-    msg += `• Прогноз на месяц: <b>${monthlyProjection}₽</b> (${projectionProgress}% от цели 30,000₽)\n\n`;
+    if (gap > 0) {
+      msg += `🎯 <b>Прогноз месяца:</b> ${monthlyProjection}₽ (не хватает ${gap}₽)\n`;
+    } else {
+      msg += `🎉 <b>Прогноз месяца:</b> ${monthlyProjection}₽ - цель достигнута!\n`;
+    }
 
-    // AI инсайты - самое важное для CEO
-    if (aiAnalysis) {
-      msg += this.aiService.formatAIAnalysisForTelegram(aiAnalysis);
+    // 6. Ошибки - только если критично (>10)
+    if (errors.total > 10) {
+      msg += `\n⚠️ Ошибок за неделю: ${errors.total}`;
+      if (comparison?.errors?.total && Math.abs(comparison.errors.total.percent) >= 20) {
+        msg += ` (${comparison.errors.total.percent > 0 ? '+' : ''}${comparison.errors.total.percent}%)`;
+      }
     }
 
     return msg;
@@ -977,6 +970,98 @@ class AnalyticsService {
       console.warn('⚠️ Ошибка когортного анализа:', error.message);
       return null;
     }
+  }
+
+  /**
+   * 🏥 PRODUCT HEALTH SCORE
+   * Composite метрика здоровья продукта (0-100)
+   */
+  calculateProductHealth() {
+    if (!this.db || !this.db.isAvailable()) {
+      console.warn('⚠️ Health Score недоступен без БД');
+      return null;
+    }
+
+    try {
+      const users = this.analyzeBehaviorUsers();
+      const funnel = this.analyzeBehaviorFunnel();
+      const payments = this.analyzePaymentsFromDB('7 days ago');
+
+      if (!users || !funnel || !payments) {
+        return null;
+      }
+
+      // Бизнес-цели
+      const businessGoals = {
+        weeklyRevenue: 7500,
+        minConversion: 5,  // 5% - минимальная конверсия
+        maxErrorRate: 5    // макс 5% ошибок
+      };
+
+      // 1. Activation Score (30%) - новые юзеры активируются
+      const activationScore = users.total_users > 0
+        ? Math.min((users.new_users / users.total_users) * 100, 100)
+        : 0;
+
+      // 2. Retention Score (30%) - юзеры возвращаются
+      const retentionScore = users.total_users > 0
+        ? Math.min((users.returning_users / users.total_users) * 100, 100)
+        : 0;
+
+      // 3. Revenue Score (25%) - достигаем целей по выручке
+      const revenueScore = Math.min((payments.revenue / businessGoals.weeklyRevenue) * 100, 100);
+
+      // 4. Quality Score (15%) - низкий уровень ошибок
+      const errorRate = payments.total > 0
+        ? (this.analyzeErrors('7 days ago').total / payments.total) * 100
+        : 0;
+      const qualityScore = Math.max(100 - (errorRate / businessGoals.maxErrorRate) * 100, 0);
+
+      // Composite score (взвешенная сумма)
+      const overallScore = Math.round(
+        activationScore * 0.30 +
+        retentionScore * 0.30 +
+        revenueScore * 0.25 +
+        qualityScore * 0.15
+      );
+
+      return {
+        overall: overallScore,
+        breakdown: {
+          activation: Math.round(activationScore),
+          retention: Math.round(retentionScore),
+          revenue: Math.round(revenueScore),
+          quality: Math.round(qualityScore)
+        },
+        grade: this.getHealthGrade(overallScore),
+        status: this.getHealthStatus(overallScore)
+      };
+    } catch (error) {
+      console.warn('⚠️ Ошибка расчета Health Score:', error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Определяет grade на основе score
+   */
+  getHealthGrade(score) {
+    if (score >= 90) return 'A+';
+    if (score >= 80) return 'A';
+    if (score >= 70) return 'B';
+    if (score >= 60) return 'C';
+    if (score >= 50) return 'D';
+    return 'F';
+  }
+
+  /**
+   * Определяет статус здоровья продукта
+   */
+  getHealthStatus(score) {
+    if (score >= 80) return 'Отлично';
+    if (score >= 60) return 'Хорошо';
+    if (score >= 40) return 'Требует улучшений';
+    return 'Критично';
   }
 }
 

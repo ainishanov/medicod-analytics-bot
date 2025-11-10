@@ -29,6 +29,54 @@ class DatabaseService {
   }
 
   /**
+   * 🔒 Валидация даты (защита от SQL инъекций)
+   */
+  validateDate(dateString) {
+    if (!dateString) return true; // null/undefined допустимы
+
+    // ISO 8601 формат: YYYY-MM-DDTHH:MM:SS.sssZ
+    const isoDateRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+    const simpleDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    if (!isoDateRegex.test(dateString) && !simpleDateRegex.test(dateString)) {
+      throw new Error(`Invalid date format: ${dateString}`);
+    }
+
+    return true;
+  }
+
+  /**
+   * 🔒 Валидация user_id (защита от SQL инъекций)
+   */
+  validateUserId(userId) {
+    if (!userId) return true;
+
+    // Допустимы только алфавитно-цифровые символы, дефис, подчеркивание
+    const userIdRegex = /^[a-zA-Z0-9_-]+$/;
+
+    if (!userIdRegex.test(userId)) {
+      throw new Error(`Invalid user_id format: ${userId}`);
+    }
+
+    return true;
+  }
+
+  /**
+   * 🔒 Валидация limit (защита от переполнения)
+   */
+  validateLimit(limit) {
+    if (!limit) return true;
+
+    const numLimit = parseInt(limit, 10);
+
+    if (isNaN(numLimit) || numLimit < 1 || numLimit > 10000) {
+      throw new Error(`Invalid limit: ${limit} (must be 1-10000)`);
+    }
+
+    return true;
+  }
+
+  /**
    * Проверка доступности БД
    */
   isAvailable() {
@@ -40,6 +88,11 @@ class DatabaseService {
    */
   getPayments(options = {}) {
     if (!this.db) return [];
+
+    // 🔒 Валидация входных данных
+    this.validateDate(options.dateFrom);
+    this.validateDate(options.dateTo);
+    this.validateLimit(options.limit);
 
     let query = 'SELECT * FROM payments WHERE status = \'succeeded\'';
     const params = {};
@@ -69,6 +122,10 @@ class DatabaseService {
    */
   getPaymentStats(options = {}) {
     if (!this.db) return null;
+
+    // 🔒 Валидация
+    this.validateDate(options.dateFrom);
+    this.validateDate(options.dateTo);
 
     let query = `
       SELECT
@@ -128,6 +185,36 @@ class DatabaseService {
     query += ' GROUP BY DATE(created_at) ORDER BY date DESC';
 
     return this.db.prepare(query).all(params);
+  }
+
+  /**
+   * Получение статистики использования функций
+   */
+  getFeatureUsage(options = {}) {
+    if (!this.db) return null;
+
+    let query = `
+      SELECT
+        SUM(CASE WHEN feature_name = 'ocr' OR feature_name LIKE '%ocr%' THEN usage_count ELSE 0 END) as ocr_count,
+        SUM(CASE WHEN feature_name = 'ai_analysis' OR feature_name LIKE '%ai%' THEN usage_count ELSE 0 END) as ai_count,
+        COUNT(DISTINCT user_id) as unique_users
+      FROM feature_usage
+      WHERE 1=1
+    `;
+
+    const params = {};
+
+    if (options.dateFrom) {
+      query += ' AND created_at >= @dateFrom';
+      params.dateFrom = options.dateFrom;
+    }
+
+    if (options.dateTo) {
+      query += ' AND created_at <= @dateTo';
+      params.dateTo = options.dateTo;
+    }
+
+    return this.db.prepare(query).get(params);
   }
 
   /**

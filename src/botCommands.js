@@ -278,6 +278,12 @@ class BotCommandsHandler {
         await this.handleAICostCommand(chatId);
         break;
 
+      // 🏥 Health Score команда
+      case '/health':
+      case '/здоровье':
+        await this.handleHealthScoreCommand(chatId);
+        break;
+
       default:
         await this.telegram.sendMessage(
           `❓ Неизвестная команда: ${command}\n\nИспользуй /help для списка команд`
@@ -296,6 +302,9 @@ class BotCommandsHandler {
 /yesterday или /вчера - Отчет за вчера
 /today или /сегодня - Отчет за сегодня
 /week или /неделя - Отчет за неделю
+
+🏥 <b>Здоровье продукта:</b>
+/health - Product Health Score (composite метрика)
 
 👥 <b>Поведение пользователей:</b>
 /users - Активные пользователи
@@ -334,6 +343,9 @@ class BotCommandsHandler {
     const keyboard = this.telegram.createInlineKeyboard([
       [
         { text: '📊 Неделя', callback_data: '/week' },
+        { text: '🏥 Health Score', callback_data: '/health' }
+      ],
+      [
         { text: '📅 Вчера', callback_data: '/yesterday' },
         { text: '📈 Сегодня', callback_data: '/today' }
       ],
@@ -373,8 +385,6 @@ class BotCommandsHandler {
    */
   async handleYesterdayCommand(chatId) {
     try {
-      await this.telegram.sendMessage('📊 Генерация отчета за вчера...');
-
       const report = await this.analytics.generateDailyReport('1 day ago');
       const message = this.formatDailyReport(report, 'вчера');
 
@@ -400,8 +410,6 @@ class BotCommandsHandler {
    */
   async handleTodayCommand(chatId) {
     try {
-      await this.telegram.sendMessage('📊 Генерация отчета за сегодня...');
-
       const report = await this.analytics.generateDailyReport('today');
       const message = this.formatDailyReport(report, 'сегодня');
 
@@ -427,8 +435,6 @@ class BotCommandsHandler {
    */
   async handleWeekCommand(chatId) {
     try {
-      await this.telegram.sendMessage('📊 Генерация недельного отчета...');
-
       const report = await this.analytics.generateWeeklyReport();
       const message = this.analytics.formatForTelegram(report);
 
@@ -1245,6 +1251,71 @@ class BotCommandsHandler {
     } catch (error) {
       console.error('❌ Ошибка:', error);
       await this.telegram.sendMessage('❌ Ошибка анализа стоимости: ' + error.message);
+    }
+  }
+
+  /**
+   * /health - Product Health Score
+   */
+  async handleHealthScoreCommand(chatId) {
+    try {
+      await this.telegram.sendMessage('🏥 Расчет Product Health Score...');
+
+      const healthScore = this.analytics.calculateProductHealth();
+
+      if (!healthScore) {
+        await this.telegram.sendMessage('⚠️ Health Score недоступен (требуется БД с данными поведения)');
+        return;
+      }
+
+      const { overall, breakdown, grade, status } = healthScore;
+
+      // Определяем эмодзи для grade
+      const gradeEmoji = overall >= 80 ? '🟢' : overall >= 60 ? '🟡' : '🔴';
+
+      let msg = `🏥 *PRODUCT HEALTH SCORE*\n\n`;
+      msg += `${gradeEmoji} *Overall: ${overall}/100* (Grade: ${grade})\n`;
+      msg += `Status: ${status}\n\n`;
+
+      msg += `📊 *Breakdown:*\n`;
+      msg += `• Activation: ${breakdown.activation}% (30%)\n`;
+      msg += `• Retention: ${breakdown.retention}% (30%)\n`;
+      msg += `• Revenue: ${breakdown.revenue}% (25%)\n`;
+      msg += `• Quality: ${breakdown.quality}% (15%)\n\n`;
+
+      // Интерпретация
+      if (overall >= 80) {
+        msg += `✅ *Продукт в отличном состоянии!*\n`;
+        msg += `Все ключевые метрики выше целевых значений.`;
+      } else if (overall >= 60) {
+        msg += `💡 *Продукт работает хорошо, но есть потенциал.*\n`;
+        // Находим слабое звено
+        const weakest = Object.entries(breakdown)
+          .sort((a, b) => a[1] - b[1])[0];
+        msg += `Фокус на улучшение: ${weakest[0]} (${weakest[1]}%)`;
+      } else if (overall >= 40) {
+        msg += `⚠️ *Требуются улучшения.*\n`;
+        msg += `Необходимо повысить ключевые метрики.`;
+      } else {
+        msg += `🚨 *Критическое состояние!*\n`;
+        msg += `Требуется немедленное вмешательство.`;
+      }
+
+      const keyboard = this.telegram.createInlineKeyboard([
+        [
+          { text: '📊 Неделя', callback_data: '/week' },
+          { text: '👥 Пользователи', callback_data: '/users' }
+        ],
+        [
+          { text: '🔄 Обновить', callback_data: '/health' },
+          { text: '⬅️ Назад', callback_data: '/help' }
+        ]
+      ]);
+
+      await this.telegram.sendMessage(msg, 'Markdown', keyboard);
+    } catch (error) {
+      console.error('❌ Ошибка:', error);
+      await this.telegram.sendMessage('❌ Ошибка расчета Health Score: ' + error.message);
     }
   }
 }

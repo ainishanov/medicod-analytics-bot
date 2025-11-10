@@ -50,148 +50,39 @@ class AIAnalysisService {
   }
 
   /**
-   * Создаёт промпт для AI анализа
+   * Создаёт компактный промпт для AI анализа
    */
   createAnalysisPrompt(currentReport) {
     const { payments, errors, features, comparison } = currentReport;
 
-    // Бизнес-цели и контекст
-    const businessGoals = {
-      monthlyRevenue: 30000,
-      weeklyRevenue: 7500,
-      dailyRevenue: 1000,
-      avgCheckTarget: 100,
-      conversionRate: 10,
-      errorRateMax: 5,
-      ocrAdoptionTarget: 20,
-      aiAdoptionTarget: 30
-    };
+    // Бизнес-цели
+    const weeklyGoal = 7500;
+    const revenueGap = weeklyGoal - payments.revenue;
+    const revenueProgress = Math.round((payments.revenue / weeklyGoal) * 100);
 
-    let prompt = `Ты эксперт по бизнес-аналитике SaaS приложения Medicod - медицинского сервиса для анализа крови.
+    // Тренды
+    const revenueTrend = comparison?.payments?.revenue?.percent || 0;
+    const paymentsTrend = comparison?.payments?.total?.percent || 0;
 
-🎯 БИЗНЕС-ЦЕЛИ:
-- Целевая выручка: ${businessGoals.weeklyRevenue}₽/неделю (${businessGoals.monthlyRevenue}₽/месяц)
-- Целевая выручка в день: ${businessGoals.dailyRevenue}₽
-- Целевой средний чек: ${businessGoals.avgCheckTarget}₽
-- Целевой adoption rate OCR: ${businessGoals.ocrAdoptionTarget}%
-- Целевой adoption rate AI: ${businessGoals.aiAdoptionTarget}%
-- Максимум ошибок: ${businessGoals.errorRateMax}%
+    let prompt = `Ты эксперт SaaS аналитики. Medicod - сервис анализа крови.
 
-📊 ТЕКУЩИЕ ДАННЫЕ (последняя неделя):
+📊 МЕТРИКИ ЗА НЕДЕЛЮ:
+• Выручка: ${payments.revenue}₽ (${revenueProgress}% от цели ${weeklyGoal}₽)
+• Платежей: ${payments.total} (${paymentsTrend > 0 ? '+' : ''}${paymentsTrend}% WoW)
+• Средний чек: ${payments.avgCheck}₽
+• Ошибок: ${errors.total}
 
-Финансы:
-- Платежей: ${payments.total}`;
+🎯 ГЭП: не хватает ${revenueGap}₽ до недельной цели
 
-    if (comparison?.payments?.total) {
-      const c = comparison.payments.total;
-      prompt += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW, было ${c.previous})`;
-    }
+ЗАДАЧА: Дай топ-3 actionable инсайта для CEO.
+Формат: [Проблема] → [Действие] → [Эффект]
 
-    prompt += `\n- Выручка: ${payments.revenue}₽`;
+Требования:
+- Фокус на revenue impact
+- Конкретные шаги (без общих советов)
+- Max 600 символов
 
-    if (comparison?.payments?.revenue) {
-      const c = comparison.payments.revenue;
-      const revenueGap = businessGoals.weeklyRevenue - payments.revenue;
-      const progress = Math.round((payments.revenue / businessGoals.weeklyRevenue) * 100);
-      prompt += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW, было ${c.previous}₽)
-  ↳ ${progress}% от целевой выручки (не хватает ${revenueGap}₽)`;
-    }
-
-    prompt += `\n- Средний чек: ${payments.avgCheck}₽`;
-
-    if (comparison?.payments?.avgCheck) {
-      const c = comparison.payments.avgCheck;
-      const checkGap = businessGoals.avgCheckTarget - payments.avgCheck;
-      prompt += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW, было ${c.previous}₽)
-  ↳ на ${checkGap}₽ ниже цели (${businessGoals.avgCheckTarget}₽)`;
-    }
-
-    prompt += `\n- Динамика по дням: ${JSON.stringify(payments.byDay, null, 2)}
-
-Функции:
-- OCR запросов: ${features.ocr}`;
-
-    if (comparison?.features?.ocr) {
-      const c = comparison.features.ocr;
-      prompt += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW, было ${c.previous})`;
-    }
-
-    const ocrAdoption = payments.total > 0 ? Math.round((features.ocr / payments.total) * 100) : 0;
-    prompt += `
-  ↳ Adoption rate: ${ocrAdoption}% (цель: ${businessGoals.ocrAdoptionTarget}%)`;
-
-    prompt += `\n- AI анализов: ${features.ai}`;
-
-    if (comparison?.features?.ai) {
-      const c = comparison.features.ai;
-      prompt += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW, было ${c.previous})`;
-    }
-
-    const aiAdoption = payments.total > 0 ? Math.round((features.ai / payments.total) * 100) : 0;
-    prompt += `
-  ↳ Adoption rate: ${aiAdoption}% (цель: ${businessGoals.aiAdoptionTarget}%)`;
-
-    prompt += `
-
-Ошибки:
-- Всего: ${errors.total}`;
-
-    if (comparison?.errors?.total) {
-      const c = comparison.errors.total;
-      prompt += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW, было ${c.previous})`;
-    }
-
-    prompt += `\n- Webhook ошибки: ${errors.webhook}`;
-
-    if (comparison?.errors?.webhook) {
-      const c = comparison.errors.webhook;
-      prompt += ` (${c.percent > 0 ? '+' : ''}${c.percent}% WoW, было ${c.previous})`;
-    }
-
-    const errorRate = payments.total > 0 ? Math.round((errors.total / payments.total) * 100) : 0;
-    prompt += `
-  ↳ Error rate: ${errorRate}% (макс: ${businessGoals.errorRateMax}%)`;
-
-    // Корреляционный анализ
-    prompt += `
-
-🔗 КОРРЕЛЯЦИИ ДЛЯ АНАЛИЗА:
-- Влияние ошибок на выручку
-- Связь между OCR/AI adoption и retention
-- Паттерны по дням недели
-- Влияние среднего чека на количество платежей`;
-
-    prompt += `
-
-🎯 ЗАДАЧА:
-Проанализируй данные в контексте бизнес-целей и предоставь:
-
-1. **🔍 КЛЮЧЕВЫЕ ИНСАЙТЫ** (2-3 пункта)
-   - Прогресс по целям (достигаем или отстаем?)
-   - WoW тренды (что растет/падает и почему?)
-   - Аномалии и неожиданные паттерны
-
-2. **⚠️ ПРОБЛЕМЫ И РИСКИ** (1-2 пункта)
-   - Что блокирует достижение целей?
-   - Критические проблемы требующие немедленного внимания
-   - Потенциальные риски для revenue/retention
-
-3. **💡 ТОП-3 ДЕЙСТВИЯ** (приоритетные по impact)
-   - Конкретные шаги с ожидаемым эффектом
-   - A/B тесты или эксперименты для запуска
-   - Quick wins (низкие усилия, высокий impact)
-
-4. **📊 НЕДОСТАЮЩИЕ ДАННЫЕ** (1-2 метрики)
-   - Какие метрики помогли бы лучше понять путь к целям?
-   - Что нужно начать отслеживать для принятия решений?
-   - Какая информация о пользователях/поведении отсутствует?
-
-5. **❓ ВОПРОСЫ ДЛЯ ИССЛЕДОВАНИЯ** (1-2 вопроса)
-   - Что нужно выяснить для принятия решений?
-   - Гипотезы для проверки
-
-Формат ответа: краткий, структурированный, с эмодзи. Максимум 1000 символов.
-Будь конкретным и actionable. Фокусируйся на biggest impact действиях.`;
+Пример: "Выручка +${Math.abs(revenueTrend)}% WoW → Масштабировать успешный канал → +${Math.round(revenueGap * 0.3)}₽ в неделю"`;
 
     return prompt;
   }
