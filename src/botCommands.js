@@ -1274,31 +1274,31 @@ class BotCommandsHandler {
       const gradeEmoji = overall >= 80 ? '🟢' : overall >= 60 ? '🟡' : '🔴';
 
       let msg = `🏥 *PRODUCT HEALTH SCORE*\n\n`;
-      msg += `${gradeEmoji} *Overall: ${overall}/100* (Grade: ${grade})\n`;
+      msg += `${gradeEmoji} *Overall: ${overall}/100* \\(Grade: ${grade}\\)\n`;
       msg += `Status: ${status}\n\n`;
 
       msg += `📊 *Breakdown:*\n`;
-      msg += `• Activation: ${breakdown.activation}% (30%)\n`;
-      msg += `• Retention: ${breakdown.retention}% (30%)\n`;
-      msg += `• Revenue: ${breakdown.revenue}% (25%)\n`;
-      msg += `• Quality: ${breakdown.quality}% (15%)\n\n`;
+      msg += `• Activation: ${breakdown.activation}% \\(30%\\)\n`;
+      msg += `• Retention: ${breakdown.retention}% \\(30%\\)\n`;
+      msg += `• Revenue: ${breakdown.revenue}% \\(25%\\)\n`;
+      msg += `• Quality: ${breakdown.quality}% \\(15%\\)\n\n`;
 
       // Интерпретация
       if (overall >= 80) {
         msg += `✅ *Продукт в отличном состоянии!*\n`;
-        msg += `Все ключевые метрики выше целевых значений.`;
+        msg += `Все ключевые метрики выше целевых значений\\.`;
       } else if (overall >= 60) {
-        msg += `💡 *Продукт работает хорошо, но есть потенциал.*\n`;
+        msg += `💡 *Продукт работает хорошо, но есть потенциал\\.*\n`;
         // Находим слабое звено
         const weakest = Object.entries(breakdown)
           .sort((a, b) => a[1] - b[1])[0];
-        msg += `Фокус на улучшение: ${weakest[0]} (${weakest[1]}%)`;
+        msg += `Фокус на улучшение: ${weakest[0]} \\(${weakest[1]}%\\)`;
       } else if (overall >= 40) {
-        msg += `⚠️ *Требуются улучшения.*\n`;
-        msg += `Необходимо повысить ключевые метрики.`;
+        msg += `⚠️ *Требуются улучшения\\.*\n`;
+        msg += `Необходимо повысить ключевые метрики\\.`;
       } else {
         msg += `🚨 *Критическое состояние!*\n`;
-        msg += `Требуется немедленное вмешательство.`;
+        msg += `Требуется немедленное вмешательство\\.`;
       }
 
       const keyboard = this.telegram.createInlineKeyboard([
