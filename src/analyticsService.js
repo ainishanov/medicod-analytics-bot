@@ -976,7 +976,7 @@ class AnalyticsService {
    * 🏥 PRODUCT HEALTH SCORE
    * Composite метрика здоровья продукта (0-100)
    */
-  calculateProductHealth() {
+  async calculateProductHealth() {
     if (!this.db || !this.db.isAvailable()) {
       console.warn('⚠️ Health Score недоступен без БД');
       return null;
@@ -985,9 +985,17 @@ class AnalyticsService {
     try {
       const users = this.analyzeBehaviorUsers();
       const funnel = this.analyzeBehaviorFunnel();
-      const payments = this.analyzePaymentsFromDB('7 days ago');
+      const payments = await this.analyzePaymentsFromDB('7 days ago');
 
+      // Проверяем что все данные валидны
       if (!users || !funnel || !payments) {
+        console.warn('⚠️ Health Score: отсутствуют данные (users/funnel/payments)');
+        return null;
+      }
+
+      // Проверяем что revenue это число
+      if (typeof payments.revenue !== 'number' || isNaN(payments.revenue)) {
+        console.warn('⚠️ Health Score: некорректные данные revenue:', payments.revenue);
         return null;
       }
 
@@ -1009,11 +1017,14 @@ class AnalyticsService {
         : 0;
 
       // 3. Revenue Score (25%) - достигаем целей по выручке
-      const revenueScore = Math.min((payments.revenue / businessGoals.weeklyRevenue) * 100, 100);
+      const revenueScore = payments.revenue > 0 && businessGoals.weeklyRevenue > 0
+        ? Math.min((payments.revenue / businessGoals.weeklyRevenue) * 100, 100)
+        : 0;
 
       // 4. Quality Score (15%) - низкий уровень ошибок
+      const errors = await this.analyzeErrors('7 days ago');
       const errorRate = payments.total > 0
-        ? (this.analyzeErrors('7 days ago').total / payments.total) * 100
+        ? (errors.total / payments.total) * 100
         : 0;
       const qualityScore = Math.max(100 - (errorRate / businessGoals.maxErrorRate) * 100, 0);
 

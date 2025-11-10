@@ -1261,7 +1261,7 @@ class BotCommandsHandler {
     try {
       await this.telegram.sendMessage('🏥 Расчет Product Health Score...');
 
-      const healthScore = this.analytics.calculateProductHealth();
+      const healthScore = await this.analytics.calculateProductHealth();
 
       if (!healthScore) {
         await this.telegram.sendMessage('⚠️ Health Score недоступен (требуется БД с данными поведения)');
