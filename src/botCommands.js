@@ -213,10 +213,10 @@ class BotCommandsHandler {
         await this.handleFunnelCommand(chatId);
         break;
 
-      case '/devices':
-      case '/устройства':
-        await this.handleDevicesCommand(chatId);
-        break;
+      // case '/devices':
+      // case '/устройства':
+      //   await this.handleDevicesCommand(chatId);
+      //   break;
 
       // case '/sources':
       // case '/источники':
@@ -309,7 +309,6 @@ class BotCommandsHandler {
 👥 <b>Поведение пользователей:</b>
 /users - Активные пользователи
 /funnel - Воронка конверсии
-/devices - Статистика по устройствам
 /features - Популярные функции
 /retention - Удержание пользователей
 /behavior - Полный отчет поведения
@@ -351,9 +350,6 @@ class BotCommandsHandler {
       [
         { text: '👥 Пользователи', callback_data: '/users' },
         { text: '🔥 Воронка', callback_data: '/funnel' }
-      ],
-      [
-        { text: '📱 Устройства', callback_data: '/devices' }
       ],
       [
         { text: '⭐ Функции', callback_data: '/features' },
@@ -440,9 +436,6 @@ class BotCommandsHandler {
         [
           { text: '👥 Пользователи', callback_data: '/users' },
           { text: '🔥 Воронка', callback_data: '/funnel' }
-        ],
-        [
-          { text: '📱 Устройства', callback_data: '/devices' }
         ],
         [
           { text: '📅 Вчера', callback_data: '/yesterday' },
