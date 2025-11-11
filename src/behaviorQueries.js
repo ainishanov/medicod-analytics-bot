@@ -8,6 +8,16 @@ import { getDatabaseInstance } from './database.js';
 const db = getDatabaseInstance();
 
 /**
+ * Фильтр для исключения localhost/тестовых пользователей
+ */
+const EXCLUDE_LOCALHOST = `
+  AND user_id NOT LIKE 'anonymous_::1%'
+  AND user_id NOT LIKE 'anonymous_::ffff:127.0.0.1%'
+  AND user_id NOT LIKE 'anonymous_127.0.0.1%'
+  AND user_id NOT LIKE 'test_%'
+`;
+
+/**
  * Получение активных пользователей
  */
 export function getActiveUsers(options = {}) {
@@ -23,6 +33,7 @@ export function getActiveUsers(options = {}) {
       AVG(analyses_uploaded) as avg_analyses_uploaded
     FROM user_sessions
     WHERE created_at >= ? AND created_at <= ?
+    ${EXCLUDE_LOCALHOST}
   `;
 
   const from = dateFrom || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -93,6 +104,7 @@ export function getConversionFunnel(options = {}) {
       ROUND(SUM(CASE WHEN payment_completed = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) as conversion_rate
     FROM user_sessions
     WHERE created_at >= ? AND created_at <= ?
+    ${EXCLUDE_LOCALHOST}
   `;
 
   const from = dateFrom || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -135,6 +147,7 @@ export function getSessionsByDevice() {
       SUM(CASE WHEN payment_completed = 1 THEN 1 ELSE 0 END) as conversions
     FROM user_sessions
     WHERE device_type IS NOT NULL
+    ${EXCLUDE_LOCALHOST}
     GROUP BY device_type
     ORDER BY session_count DESC
   `;
@@ -209,6 +222,7 @@ export function getEngagementByDayOfWeek() {
       SUM(analyses_uploaded) as total_analyses
     FROM user_sessions
     WHERE created_at >= DATE('now', '-30 days')
+    ${EXCLUDE_LOCALHOST}
     GROUP BY day_of_week, day_name
     ORDER BY day_of_week
   `;
