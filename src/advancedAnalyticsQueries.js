@@ -65,7 +65,7 @@ export function upsertUserLTV(userId) {
       MIN(completed_at) as first_purchase_date,
       MAX(completed_at) as last_purchase_date,
       JULIANDAY('now') - JULIANDAY(MAX(completed_at)) as days_since_last_purchase
-    FROM payment_history
+    FROM payments_unified
     WHERE user_id = ? AND status = 'succeeded'
   `).get(userId);
 
@@ -86,7 +86,7 @@ export function upsertUserLTV(userId) {
   // Рассчитываем LTV за разные периоды
   const ltv30 = db.db.prepare(`
     SELECT SUM(amount) as revenue
-    FROM payment_history
+    FROM payments_unified
     WHERE user_id = ?
       AND status = 'succeeded'
       AND completed_at >= datetime('now', '-30 days')
@@ -94,7 +94,7 @@ export function upsertUserLTV(userId) {
 
   const ltv90 = db.db.prepare(`
     SELECT SUM(amount) as revenue
-    FROM payment_history
+    FROM payments_unified
     WHERE user_id = ?
       AND status = 'succeeded'
       AND completed_at >= datetime('now', '-90 days')
@@ -102,7 +102,7 @@ export function upsertUserLTV(userId) {
 
   const ltv365 = db.db.prepare(`
     SELECT SUM(amount) as revenue
-    FROM payment_history
+    FROM payments_unified
     WHERE user_id = ?
       AND status = 'succeeded'
       AND completed_at >= datetime('now', '-365 days')
@@ -336,7 +336,7 @@ export function getAverageOrderValue(options = {}) {
       AVG(amount) as average_order_value,
       MIN(amount) as min_order,
       MAX(amount) as max_order
-    FROM payment_history
+    FROM payments_unified
     WHERE status = 'succeeded'
       AND completed_at >= ?
       AND completed_at <= ?

@@ -97,7 +97,7 @@ class DatabaseService {
     this.validateDate(options.dateTo);
     this.validateLimit(options.limit);
 
-    let query = 'SELECT * FROM payments WHERE status = \'succeeded\'';
+    let query = 'SELECT * FROM payments_unified WHERE status = \'succeeded\'';
     const params = {};
 
     if (options.dateFrom) {
@@ -138,7 +138,7 @@ class DatabaseService {
         MIN(amount) as min_amount,
         MAX(amount) as max_amount,
         COUNT(DISTINCT user_id) as unique_users
-      FROM payments
+      FROM payments_unified
       WHERE status = 'succeeded'
     `;
 
@@ -169,7 +169,7 @@ class DatabaseService {
         COUNT(*) as count,
         SUM(amount) as revenue,
         AVG(amount) as avg_amount
-      FROM payments
+      FROM payments_unified
       WHERE status = 'succeeded'
     `;
 
